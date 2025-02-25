@@ -1,95 +1,71 @@
-import java.net.*;
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.security.Key;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import javax.crypto.Cipher;
-import javax.crypto.spec.SecretKeySpec;
 import java.util.Base64;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 public class Server {
-    private static final int PORT = 9876;
-    private static Key rsaPrivateKey; // RSA Private Key
-    private static Key aesKey;               // AES Key
 
+    private static Key aesKey;
+    private static Key rsaPrivateKey;
+    
     public static void main(String[] args) {
-        DatagramSocket socket = null;
         try {
-            socket = new DatagramSocket(PORT);
-            System.err.println("Server started on port " + PORT);
-
-            // Load RSA Private Key (used for decrypting the AES-encrypted message from the client)
-            rsaPrivateKey = RSAKeyGenerator.read("keys/server_private.key", "priv");
+            // Load the AES key from the file
             aesKey = AESKeyGenerator.read("keys/aes_key.key");
 
-            byte[] receiveData = new byte[1024];
+            // Load the RSA private key (for decrypting with RSA)
+            rsaPrivateKey = RSAKeyGenerator.read("keys/server_private.key", "priv");
+
+            // Create a UDP socket to listen for incoming data
+            DatagramSocket serverSocket = new DatagramSocket(9876);
+            System.out.println("Server listening on port 9876...");
 
             while (true) {
+                // Receive incoming UDP packet
+                byte[] receiveData = new byte[1024];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-                socket.receive(receivePacket);
+                serverSocket.receive(receivePacket);
 
-                String rsaEncryptedMessage = new String(receivePacket.getData(), 0, receivePacket.getLength());
+                // Get the encrypted data as a string
+                String encryptedData = new String(receivePacket.getData(), 0, receivePacket.getLength());
 
-                // Decrypt the message using RSA Private Key
-                String aesEncryptedMessage = RSAdecrypt(rsaEncryptedMessage, rsaPrivateKey);
+                // Step 1: RSA Decryption of AES-encrypted data
+                String aesEncryptedData = decryptWithRSA(encryptedData, rsaPrivateKey);
 
-                // Decrypt the AES-encrypted message using the AES key
-                String message = AESdecrypt(aesEncryptedMessage, aesKey);
-                System.out.println("Received (Decrypted): " + message);
+                // Step 2: AES Decryption to get the original message
+                String originalMessage = decryptWithAES(aesEncryptedData, aesKey);
 
-                // Prepare response (simply sending back the received message)
-                String aesResponse = AESencrypt("Response: " + message, aesKey);
-
-                // Encrypt the response message with RSA using the client's public key
-                Key clientPublicKey = RSAKeyGenerator.read("keys/client_public.key", "pub");  // Assuming the client's public key is available
-                String rsaEncryptedResponse = RSAencrypt(aesResponse, clientPublicKey);
-
-                // Send the RSA-encrypted response back to the client
-                byte[] sendData = rsaEncryptedResponse.getBytes();
-                InetAddress clientAddress = receivePacket.getAddress();
-                int clientPort = receivePacket.getPort();
-                DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, clientAddress, clientPort);
-                socket.send(sendPacket);
+                // Step 3: Print the original message
+                System.out.println("Original Message: " + originalMessage);
             }
-
         } catch (Exception e) {
             e.printStackTrace();
-        } finally {
-            if (socket != null && !socket.isClosed()) {
-                System.err.println("Closing the socket");
-                socket.close();
-            }
         }
     }
 
-    // Decrypts data using the RSA private key
-    private static String RSAdecrypt(String data, Key rsaPrivateKey) throws Exception {
-        Cipher cipher = Cipher.getInstance("RSA");
-        cipher.init(Cipher.DECRYPT_MODE, rsaPrivateKey);
-        byte[] decryptedBytes = cipher.doFinal(Base64.getDecoder().decode(data));
-        return new String(decryptedBytes);
-    }
-
-    // Encrypts data using the RSA public key
-    private static String RSAencrypt(String data, Key clientPublicKey) throws Exception {
+    // Method to decrypt data using RSA
+    private static String decryptWithRSA(String input, Key rsaPrivateKey2) throws Exception {
             Cipher cipher = Cipher.getInstance("RSA");
-            cipher.init(Cipher.ENCRYPT_MODE, clientPublicKey);
-        byte[] encryptedBytes = cipher.doFinal(data.getBytes());
-        return Base64.getEncoder().encodeToString(encryptedBytes);
+            cipher.init(Cipher.DECRYPT_MODE, rsaPrivateKey2);
+        byte[] decryptedBytes = cipher.doFinal(Base64.getDecoder().decode(input));
+        System.out.println("Message decripted with RSA key");
+        return new String(decryptedBytes); // Return as decrypted string
     }
 
-    // Decrypts data using AES
-    private static String AESdecrypt(String data, Key key) throws Exception {
-        Cipher cipher = Cipher.getInstance("AES");
-        cipher.init(Cipher.DECRYPT_MODE, key);
-        byte[] decryptedBytes = cipher.doFinal(Base64.getDecoder().decode(data));
-        return new String(decryptedBytes);
-    }
-
-    // Encrypts data using AES
-    private static String AESencrypt(String data, Key key) throws Exception {
-        Cipher cipher = Cipher.getInstance("AES");
-        cipher.init(Cipher.ENCRYPT_MODE, key);
-        byte[] encryptedBytes = cipher.doFinal(data.getBytes());
-        return Base64.getEncoder().encodeToString(encryptedBytes);
+    // Method to decrypt data using AES
+    private static String decryptWithAES(String input, Key aesKey2) throws Exception {
+            Cipher cipher = Cipher.getInstance("AES");
+            cipher.init(Cipher.DECRYPT_MODE, aesKey2);
+        byte[] decryptedBytes = cipher.doFinal(Base64.getDecoder().decode(input));
+        System.out.println("Message decripted with AES key");
+        return new String(decryptedBytes); // Return as decrypted string
     }
 }
+
