@@ -1,5 +1,11 @@
+package src.main.java.blockchain.client;
+
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
+
+import src.main.java.blockchain.utils.AESKeyGenerator;
+import src.main.java.blockchain.utils.RSAKeyGenerator;
+
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;

@@ -1,3 +1,4 @@
+package src.main.java.blockchain.utils;
 import javax.crypto.spec.SecretKeySpec;
 
 import java.io.FileInputStream;
