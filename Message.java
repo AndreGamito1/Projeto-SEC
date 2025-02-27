@@ -1,40 +1,23 @@
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+import java.io.Serializable;
 
-public class Message {
-    private final String payload;
-    private final byte[] hmac;
-    private final String sender;
+public class Message implements Serializable {
+    private static final long serialVersionUID = 1L;
+    private String payload;
 
-    public Message(String payload, String sender, byte[] key) throws Exception {
+    public Message(String payload) {
         this.payload = payload;
-        this.sender = sender;
-        this.hmac = generateHMAC(payload, key);
-    }
-
-    private byte[] generateHMAC(String message, byte[] key) throws Exception {
-        Mac mac = Mac.getInstance("HmacSHA256");
-        SecretKeySpec secretKey = new SecretKeySpec(key, "HmacSHA256");
-        mac.init(secretKey);
-        return mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
-    }
-
-    public boolean verifyHMAC(byte[] key) throws Exception {
-        byte[] expectedHmac = generateHMAC(payload, key);
-        return Arrays.equals(expectedHmac, this.hmac);
     }
 
     public String getPayload() {
         return payload;
     }
 
-    public String getSender() {
-        return sender;
+    public void setPayload(String payload) {
+        this.payload = payload;
     }
 
-    public byte[] getHmac() {
-        return hmac;
+    @Override
+    public String toString() {
+        return "Message{" + "payload='" + payload + '\'' + '}';
     }
 }
