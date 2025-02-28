@@ -1,7 +1,6 @@
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.util.concurrent.ConcurrentHashMap;
+import java.io.*;
+import java.net.*;
+import java.util.concurrent.*;
 
 public class StubbornLinks {
     private final DatagramSocket socket;
@@ -16,29 +15,45 @@ public class StubbornLinks {
         this.ackReceived = new ConcurrentHashMap<>();
     }
 
-    public void sp2pSend(String message) {
-        String messageID = String.valueOf(message.hashCode());
-        ackReceived.put(messageID, false);
+    public void sp2pSend(Message message) {
+        try {
+            // Serialize the Message object to a byte array
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
+            objectOutputStream.writeObject(message);
+            byte[] messageBytes = byteArrayOutputStream.toByteArray();
 
-        new Thread(() -> {
-            try {
-                String fullMessage = messageID + ":" + message;
-                byte[] buffer = fullMessage.getBytes();
-                DatagramPacket packet = new DatagramPacket(buffer, buffer.length, destAddress, destPort);
+            String messageID = String.valueOf(message.hashCode());
+            ackReceived.put(messageID, false);
 
-                while (!ackReceived.get(messageID)) { 
-                    socket.send(packet);
-                    System.out.println("[SP2P] Sent: " + message);
-                    Thread.sleep(1000); // Retransmit every second
+            new Thread(() -> {
+                try {
+                    DatagramPacket packet = new DatagramPacket(messageBytes, messageBytes.length, destAddress, destPort);
+
+                    while (!ackReceived.get(messageID)) {
+                        socket.send(packet);
+                        System.out.println("[SP2P] Sent: " + message);
+                        Thread.sleep(1000); // Retransmit every second
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }).start();
+            }).start();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
-    public void sp2pDeliver(String message) {
-        System.out.println("[SP2P] Delivered: " + message);
+    public void sp2pDeliver(byte[] messageBytes) {
+        try {
+            // Deserialize the byte array back to a Message object
+            ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(messageBytes);
+            ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream);
+            Message message = (Message) objectInputStream.readObject();
+            System.out.println("[SP2P] Delivered: " + message);
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
     }
 
     public void receiveAcknowledgment() {
@@ -56,11 +71,16 @@ public class StubbornLinks {
                         ackReceived.put(messageID, true);
                         System.out.println("[SP2P] Acknowledged: " + messageID);
                     } else {
+                        // Deserialize the byte array back to a Message object
+                        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(packet.getData(), 0, packet.getLength());
+                        ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream);
+                        Message message = (Message) objectInputStream.readObject();
+
                         // Deliver the message
-                        sp2pDeliver(receivedData);
+                        sp2pDeliver(packet.getData());
 
                         // Send acknowledgment
-                        String messageID = receivedData.split(":")[0];
+                        String messageID = String.valueOf(message.hashCode());
                         String ackMessage = "ACK:" + messageID;
                         byte[] ackBuffer = ackMessage.getBytes();
                         DatagramPacket ackPacket = new DatagramPacket(ackBuffer, ackBuffer.length, packet.getAddress(), packet.getPort());

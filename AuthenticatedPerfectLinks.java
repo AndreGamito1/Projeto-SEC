@@ -1,102 +1,72 @@
-import javax.crypto.SecretKey;
 import java.io.*;
-import java.net.Socket;
-import java.security.PublicKey;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.Base64;
-import javax.crypto.Cipher;
-import java.security.KeyFactory;
+import java.security.MessageDigest;
+import java.util.HashSet;
+import java.util.Set;
 
 public class AuthenticatedPerfectLinks {
-    private String hostname;
-    private int port;
-    private SecretKey aesKey;
-    
-    public AuthenticatedPerfectLinks(String hostname, int port) {
-        this.hostname = hostname;
-        this.port = port;
+    private final StubbornLinks stubbornLinks;
+    private final Set<String> delivered;
+
+    public AuthenticatedPerfectLinks(String destIP, int destPort, int hostPort) throws Exception {
+        this.stubbornLinks = new StubbornLinks(destIP, destPort, hostPort);
+        this.delivered = new HashSet<>();
     }
-    
-    public void alp2pSend(String dest, Message message) throws Exception {
-        Socket socket = new Socket(hostname, port);
-        ObjectOutputStream objectOut = null;
-        BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
-        
+
+    // Send Message object
+    public void alp2pSend(Message message) {
         try {
-            // Receive Receiver's Public Key
-            String publicKeyString = reader.readLine();
-            byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyString);
-            PublicKey receiverPublicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(publicKeyBytes));
-            
-            // Generate AES Key
-            aesKey = CryptoUtils.generateAESKey();
-            System.out.println("[Sender] Generated AES Key");
-            
-            // Encrypt AES Key using Receiver's Public Key
-            String encryptedAESKey = CryptoUtils.encryptAESKeyWithRSA(receiverPublicKey, aesKey);
-            writer.println(encryptedAESKey);
-            System.out.println("[Sender] Sent Encrypted AES Key");
-            
-            // Set up object output stream
-            objectOut = new ObjectOutputStream(socket.getOutputStream());
-            
-            // Encrypt and send the Message object
-            String payload = message.getPayload();
-            String encryptedPayload = AESUtils.encrypt(payload, aesKey);
-            Message encryptedMessage = new Message(encryptedPayload);
-            
-            objectOut.writeObject(encryptedMessage);
-            objectOut.flush();
-            System.out.println("[Sender] Sent Encrypted Message: " + message);
-        } finally {
-            if (objectOut != null) {
-                objectOut.close();
-            }
-            socket.close();
+            // Serialize the message object
+            ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+            ObjectOutputStream objectStream = new ObjectOutputStream(byteStream);
+            objectStream.writeObject(message);
+            byte[] serializedMessage = byteStream.toByteArray();
+
+            // Generate authentication tag for the serialized message
+            String authTag = authenticate(serializedMessage);
+
+            // Append the authentication tag to the message (authentication done on the serialized byte array)
+            Message fullMessage = new Message(new String(serializedMessage), authTag);
+
+            // Send using stubborn links
+            stubbornLinks.sp2pSend(fullMessage);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
-    
-    // For continuous sending (as in your Main class)
-    public void continuousSend(String dest, String payload) throws Exception {
-        Socket socket = new Socket(hostname, port);
-        ObjectOutputStream objectOut = null;
-        BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
-        
+
+    // Receive and deliver Message object
+    public void alp2pDeliver(String src, byte[] serializedMessage) {
         try {
-            // Receive Receiver's Public Key
-            String publicKeyString = reader.readLine();
-            byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyString);
-            PublicKey receiverPublicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(publicKeyBytes));
-            
-            // Generate AES Key
-            aesKey = CryptoUtils.generateAESKey();
-            System.out.println("[Sender] Generated AES Key");
-            
-            // Encrypt AES Key using Receiver's Public Key
-            String encryptedAESKey = CryptoUtils.encryptAESKeyWithRSA(receiverPublicKey, aesKey);
-            writer.println(encryptedAESKey);
-            System.out.println("[Sender] Sent Encrypted AES Key");
-            
-            // Set up object output stream
-            objectOut = new ObjectOutputStream(socket.getOutputStream());
-            
-            // Send Encrypted Messages continuously
-            while (true) {
-                Thread.sleep(3000);
-                String encryptedPayload = AESUtils.encrypt(payload, aesKey);
-                Message encryptedMessage = new Message(encryptedPayload);
-                
-                objectOut.writeObject(encryptedMessage);
-                objectOut.flush();
-                System.out.println("[Sender] Sent Encrypted Message: " + payload);
-            }
-        } finally {
-            if (objectOut != null) {
-                objectOut.close();
-            }
-            socket.close();
+            // Deserialize the message object
+            ByteArrayInputStream byteStream = new ByteArrayInputStream(serializedMessage);
+            ObjectInputStream objectStream = new ObjectInputStream(byteStream);
+            Message message = (Message) objectStream.readObject();
+
+            System.out.println("[ALP2P] Delivered from " + src + ": " + message);
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
         }
+    }
+
+    public void receiveMessages() {
+        new Thread(() -> {
+            stubbornLinks.receiveAcknowledgment(); // Listens for incoming messages
+        }).start();
+    }
+
+    private String authenticate(byte[] message) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(message);
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hash) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Authentication error", e);
+        }
+    }
+
+    private boolean verifyAuth(byte[] message, String receivedAuthTag) {
+        return authenticate(message).equals(receivedAuthTag);
     }
 }
