@@ -1,72 +1,48 @@
-import java.io.*;
-import java.security.MessageDigest;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
-public class AuthenticatedPerfectLinks {
-    private final StubbornLinks stubbornLinks;
-    private final Set<String> delivered;
+interface MessageCallback {
+    void onMessageReceived(AuthenticatedMessage authMessage);
+}
 
-    public AuthenticatedPerfectLinks(String destIP, int destPort, int hostPort) throws Exception {
-        this.stubbornLinks = new StubbornLinks(destIP, destPort, hostPort);
-        this.delivered = new HashSet<>();
-    }
-
-    // Send Message object
-    public void alp2pSend(Message message) {
+public class AuthenticatedPerfectLinks implements MessageCallback {
+    private List<AuthenticatedMessage> delivered;
+    private StubbornLinks stubbornLink;
+    
+    public AuthenticatedPerfectLinks(String destIP, int destPort, int hostPort) {
         try {
-            // Serialize the message object
-            ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-            ObjectOutputStream objectStream = new ObjectOutputStream(byteStream);
-            objectStream.writeObject(message);
-            byte[] serializedMessage = byteStream.toByteArray();
-
-            // Generate authentication tag for the serialized message
-            String authTag = authenticate(serializedMessage);
-
-            // Append the authentication tag to the message (authentication done on the serialized byte array)
-            Message fullMessage = new Message(new String(serializedMessage), authTag);
-
-            // Send using stubborn links
-            stubbornLinks.sp2pSend(fullMessage);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    // Receive and deliver Message object
-    public void alp2pDeliver(String src, byte[] serializedMessage) {
-        try {
-            // Deserialize the message object
-            ByteArrayInputStream byteStream = new ByteArrayInputStream(serializedMessage);
-            ObjectInputStream objectStream = new ObjectInputStream(byteStream);
-            Message message = (Message) objectStream.readObject();
-
-            System.out.println("[ALP2P] Delivered from " + src + ": " + message);
-        } catch (IOException | ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void receiveMessages() {
-        new Thread(() -> {
-            stubbornLinks.receiveAcknowledgment(); // Listens for incoming messages
-        }).start();
-    }
-
-    private String authenticate(byte[] message) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hash = md.digest(message);
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hash) sb.append(String.format("%02x", b));
-            return sb.toString();
+            this.stubbornLink = new StubbornLinks(destIP, destPort, hostPort, this);
+             this.delivered = new ArrayList<>();
         } catch (Exception e) {
-            throw new RuntimeException("Authentication error", e);
+            e.printStackTrace();
         }
     }
+    
+    public void alp2pSend(String dest, Message message) {
+        String authString = authenticate(message);
+        AuthenticatedMessage authMessage = new AuthenticatedMessage(message, authString);
+        stubbornLink.sp2pSend(authMessage);
+    }
+    
+    public void alp2pDeliver(AuthenticatedMessage authMessage) {
+        delivered.add(authMessage);
+        System.out.println("[ALP2P] Received Authenticated Message with ID: " + authMessage.getMessageID());
+        System.out.println("[ALP2P] Auth String: " + authMessage.getAuthString());
+        System.out.println("[ALP2P] Original Message: " + authMessage.toString()); // Print the original message
+    }
+    
+    /*TODO Make an actual authenticated method */
+    public String authenticate(Message message) {
+        return message.getMessageID();  
+    }
+    
+    public int getDeliveredSize() {
+        return delivered.size();
+    }
 
-    private boolean verifyAuth(byte[] message, String receivedAuthTag) {
-        return authenticate(message).equals(receivedAuthTag);
+
+    @Override
+    public void onMessageReceived(AuthenticatedMessage authMessage) {
+        alp2pDeliver(authMessage);
     }
 }

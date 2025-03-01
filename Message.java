@@ -5,16 +5,10 @@ public class Message implements Serializable {
     private static final long serialVersionUID = 1L;
     private String payload;
     private String command;
+    private String authString;
     private String messageID;
 
-    // Constructor for backward compatibility
-    public Message(String payload) {
-        this.payload = payload;
-        this.command = null;  // No command
-        this.messageID = UUID.randomUUID().toString();
-    }
-    
-    // New constructor with command
+
     public Message(String payload, String command) {
         this.payload = payload;
         this.command = command;
@@ -27,6 +21,10 @@ public class Message implements Serializable {
     
     public String getCommand() {
         return command;
+    }
+
+    public void setCommand(String command) {
+        this.command = command;
     }
 
     public String getMessageID() {
