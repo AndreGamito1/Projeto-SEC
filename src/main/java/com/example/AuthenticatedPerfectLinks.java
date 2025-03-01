@@ -1,6 +1,8 @@
 package com.example;
 import java.util.ArrayList;
 import java.util.List;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 interface MessageCallback {
     void onMessageReceived(AuthenticatedMessage authMessage);
