@@ -4,8 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.hdspproject</groupId>
-    <artifactId>authenticated-perfect-links</artifactId>
+    <groupId>com.example</groupId>
+    <artifactId>leader-app</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
@@ -15,66 +15,33 @@
     </properties>
 
     <dependencies>
-        <!-- JUnit Jupiter (JUnit 5) -->
+        <!-- JSON dependency -->
         <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <version>5.9.2</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <version>5.9.2</version>
-            <scope>test</scope>
-        </dependency>
-        
-        <!-- Mockito para simular componentes -->
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
-            <version>5.3.1</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-junit-jupiter</artifactId>
-            <version>5.3.1</version>
-            <scope>test</scope>
-            
-        </dependency>
-                <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
-            <version>20210307</version>
+            <version>20230618</version>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
-            <!-- Plugin para executar testes -->
             <plugin>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0</version>
-            </plugin>
-            
-            <!-- Plugin para compilação -->
-            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <source>${maven.compiler.source}</source>
-                    <target>${maven.compiler.target}</target>
+                    <source>11</source>
+                    <target>11</target>
                 </configuration>
             </plugin>
-            
-            <!-- Plugin para criar JAR executável -->
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.6.0</version>
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>AuthenticatedPerfectLinksTest</mainClass>
+                            <mainClass>com.example.Leader</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>

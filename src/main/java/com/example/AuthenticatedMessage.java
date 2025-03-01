@@ -1,3 +1,5 @@
+package com.example;
+
 public class AuthenticatedMessage extends Message {
     private String authString;  // Add an authentication string
 

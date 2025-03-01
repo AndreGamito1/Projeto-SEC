@@ -1,3 +1,4 @@
+package com.example;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import java.util.Base64;
