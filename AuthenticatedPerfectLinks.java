@@ -40,6 +40,10 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
         return delivered.size();
     }
 
+    public List<AuthenticatedMessage> getDeliveredMessages() {
+        return delivered;
+    }
+
 
     @Override
     public void onMessageReceived(AuthenticatedMessage authMessage) {
