@@ -9,13 +9,13 @@ interface MessageCallback {
 }
 
 public class AuthenticatedPerfectLinks implements MessageCallback {
-    private List<AuthenticatedMessage> delivered;
+    private List<AuthenticatedMessage> received;
     private StubbornLinks stubbornLink;
     
     public AuthenticatedPerfectLinks(String destIP, int destPort, int hostPort) {
         try {
             this.stubbornLink = new StubbornLinks(destIP, destPort, hostPort, this);
-            this.delivered = new ArrayList<>();
+            this.received = new ArrayList<>();
             Logger.log(Logger.AUTH_LINKS, "AuthenticatedPerfectLinks initialized");
         } catch (Exception e) {
             e.printStackTrace();
@@ -28,10 +28,10 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
         stubbornLink.sp2pSend(authMessage);
     }
     
-    public void alp2pDeliver(AuthenticatedMessage authMessage) {
+    public void alp2pReceive(AuthenticatedMessage authMessage) {
         if (verifyauth(authMessage)) {
             Logger.log(Logger.AUTH_LINKS, "Message verified:" +authMessage.getMessageID());
-            delivered.add(authMessage);
+            received.add(authMessage);
             Logger.log(Logger.AUTH_LINKS, "Received Authenticated Message" + authMessage.toString());
          
         }
@@ -58,8 +58,8 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
     
 
     public boolean verifyauth(AuthenticatedMessage authMessage) {
-        for (AuthenticatedMessage deliveredMessage : delivered) {
-            if (deliveredMessage.getMessageID().equals(authMessage.getMessageID())) {
+        for (AuthenticatedMessage receivedMessage : received) {
+            if (receivedMessage.getMessageID().equals(authMessage.getMessageID())) {
                 return false; 
             }
         }
@@ -68,17 +68,17 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
         return authMessage.getAuthString().equals(expectedAuthString);
     }
 
-    public int getDeliveredSize() {
-        return delivered.size();
+    public int getReceivedSize() {
+        return received.size();
     }
 
-    public List<AuthenticatedMessage> getDeliveredMessages() {
-        return delivered;
+    public List<AuthenticatedMessage> getReceivedMessages() {
+        return received;
     }
 
 
     @Override
     public void onMessageReceived(AuthenticatedMessage authMessage) {
-        alp2pDeliver(authMessage);
+        alp2pReceive(authMessage);
     }
 }

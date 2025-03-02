@@ -208,11 +208,11 @@ public class Leader {
         // Wait a moment to allow messages to be processed
         Thread.sleep(2000);
         
-        // Report on delivered messages
+        // Report on received messages
         for (String memberName : memberLinks.keySet()) {
             AuthenticatedPerfectLinks link = memberLinks.get(memberName);
-            int deliveredCount = link.getDeliveredSize();
-            Logger.log(Logger.LEADER_ERRORS, "Delivered messages for " + memberName + ": " + deliveredCount);
+            int receivedCount = link.getReceivedSize();
+            Logger.log(Logger.LEADER_ERRORS, "Received messages for " + memberName + ": " + receivedCount);
         }
         
         Logger.log(Logger.LEADER_ERRORS, "Communication test completed");
@@ -244,11 +244,11 @@ public class Leader {
                 Thread.sleep(5000);
                 Logger.log(Logger.LEADER_ERRORS, "Leader is running...");
                 
-                // Report on delivered messages
+                // Report on received messages
                 for (String memberName : memberLinks.keySet()) {
                     AuthenticatedPerfectLinks link = memberLinks.get(memberName);
-                    int deliveredCount = link.getDeliveredSize();
-                    Logger.log(Logger.LEADER_ERRORS, "Delivered messages for " + memberName + ": " + deliveredCount);
+                    int receivedCount = link.getReceivedSize();
+                    Logger.log(Logger.LEADER_ERRORS, "Received messages for " + memberName + ": " + receivedCount);
                 }
             }
         } catch (Exception e) {

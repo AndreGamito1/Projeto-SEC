@@ -29,7 +29,7 @@ public class AuthenticatedPerfectLinksTest {
                 alp2p.alp2pSend("dest", message);
                 System.out.println("Sent authenticated message with payload: " + payload);
 
-                System.out.println("Delivered message count: " + alp2p.getDeliveredSize());
+                System.out.println("Received message count: " + alp2p.getReceivedSize());
             }
 
         } catch (Exception e) {

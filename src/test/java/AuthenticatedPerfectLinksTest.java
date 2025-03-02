@@ -5,6 +5,11 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.example.AuthenticatedMessage;
+import com.example.AuthenticatedPerfectLinks;
+import com.example.Message;
+import com.example.StubbornLinks;
+
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -78,16 +83,16 @@ class AuthenticatedPerfectLinksTest {
         AuthenticatedMessage authMessage = new AuthenticatedMessage(message, authString);
         
         // Verifica se não há mensagens entregues inicialmente
-        assertEquals(0, authenticatedPerfectLinks.getDeliveredSize());
+        assertEquals(0, authenticatedPerfectLinks.getReceivedSize());
         
         // Entrega a mensagem
-        authenticatedPerfectLinks.alp2pDeliver(authMessage);
+        authenticatedPerfectLinks.alp2pReceive(authMessage);
         
         // Verifica se a mensagem foi entregue
-        assertEquals(1, authenticatedPerfectLinks.getDeliveredSize());
+        assertEquals(1, authenticatedPerfectLinks.getReceivedSize());
         
         // Verifica se a mensagem entregue é igual à mensagem original
-        List<AuthenticatedMessage> deliveredMessages = authenticatedPerfectLinks.getDeliveredMessages();
+        List<AuthenticatedMessage> deliveredMessages = authenticatedPerfectLinks.getReceivedMessages();
         assertEquals(1, deliveredMessages.size());
         
         AuthenticatedMessage deliveredMessage = deliveredMessages.get(0);
@@ -108,10 +113,10 @@ class AuthenticatedPerfectLinksTest {
         authenticatedPerfectLinks.onMessageReceived(authMessage);
         
         // Verifica se a mensagem foi entregue (alp2pDeliver deve ter sido chamado)
-        assertEquals(1, authenticatedPerfectLinks.getDeliveredSize());
+        assertEquals(1, authenticatedPerfectLinks.getReceivedSize());
         
         // Verifica se a mensagem entregue é igual à mensagem original
-        List<AuthenticatedMessage> deliveredMessages = authenticatedPerfectLinks.getDeliveredMessages();
+        List<AuthenticatedMessage> deliveredMessages = authenticatedPerfectLinks.getReceivedMessages();
         assertEquals(authMessage, deliveredMessages.get(0));
     }
     
@@ -125,8 +130,8 @@ class AuthenticatedPerfectLinksTest {
         // Uma implementação personalizada para registrar quando a mensagem é entregue
         AuthenticatedPerfectLinks realAuthLinks = new AuthenticatedPerfectLinks("127.0.0.1", 8889, 8888) {
             @Override
-            public void alp2pDeliver(AuthenticatedMessage authMessage) {
-                super.alp2pDeliver(authMessage);
+            public void alp2pReceive(AuthenticatedMessage authMessage) {
+                super.alp2pReceive(authMessage);
                 deliveryLatch.countDown();
             }
         };
@@ -143,7 +148,7 @@ class AuthenticatedPerfectLinksTest {
         
         // Verifica se a mensagem foi entregue
         assertTrue(messageDelivered, "A mensagem deve ser entregue dentro do timeout");
-        assertEquals(1, realAuthLinks.getDeliveredSize());
-        assertEquals(authMessage.getMessageID(), realAuthLinks.getDeliveredMessages().get(0).getMessageID());
+        assertEquals(1, realAuthLinks.getReceivedSize());
+        assertEquals(authMessage.getMessageID(), realAuthLinks.getReceivedMessages().get(0).getMessageID());
     }
 }

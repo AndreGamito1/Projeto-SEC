@@ -6,3 +6,4 @@ keys/server_public.key
 *.class
 output/
 *.json
+shared/resources.json

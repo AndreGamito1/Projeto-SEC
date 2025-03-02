@@ -32,7 +32,7 @@ public class Member {
         // Load member details from resources.json
         loadMemberDetails();
         
-        System.out.println("[" + name + "] Initialized with port " + port);
+        Logger.log(Logger.MEMBER, "Initialized with port " + port);
     }
     
     /**
@@ -84,11 +84,10 @@ public class Member {
         if (memberJson.has("encryptedSessionKey")) {
             String encryptedSessionKey = memberJson.getString("encryptedSessionKey");
             this.sessionKey = CryptoUtils.decryptAESKeyWithRSA(privateKey, encryptedSessionKey);
-            System.out.println("[" + name + "] Decrypted session key from resources.json");
+            Logger.log(Logger.MEMBER, "Decrypted session key from resources.json");
         }
         
-        
-        System.out.println("[" + name + "] Loaded keys and port from resources.json");
+        Logger.log(Logger.MEMBER, "Loaded keys and port from resources.json");
     }
     
     /**
@@ -100,16 +99,16 @@ public class Member {
         // Calculate leader port based on member port (always memberPort + 1000)
         int leaderPort = this.port + 1000;
         
-        System.out.println("[" + name + "] Using calculated leader port: " + leaderPort);
+        Logger.log(Logger.MEMBER, "Using calculated leader port: " + leaderPort);
         
         String leaderIP = "127.0.0.1"; // Assuming leader is on localhost
         
         // Create authenticated perfect link to leader using our outbound port
-        System.out.println("Creating authenticated link to leader at " + leaderIP + ":" + leaderPort + 
+        Logger.log(Logger.MEMBER, "Creating authenticated link to leader at " + leaderIP + ":" + leaderPort + 
                           " using outbound port " + this.port);
         this.leaderLink = new AuthenticatedPerfectLinks(leaderIP, leaderPort, this.port);
         
-        System.out.println("[" + name + "] Connected to leader at " + leaderIP + ":" + leaderPort + 
+        Logger.log(Logger.MEMBER, "Connected to leader at " + leaderIP + ":" + leaderPort + 
                           " using outbound port " + this.port);
     }
     
@@ -128,7 +127,7 @@ public class Member {
         Message message = new Message(payload, command);
         leaderLink.alp2pSend("leader", message);
         
-        System.out.println("[" + name + "] Sent message to leader: payload=\"" + payload + "\", command=\"" + command + "\"");
+        Logger.log(Logger.MEMBER, "Sent message to leader: payload=\"" + payload + "\", command=\"" + command + "\"");
     }
     
     /**
@@ -141,7 +140,7 @@ public class Member {
             connectToLeader();
             
             // Start listening for messages
-            System.out.println("[" + name + "] Listening for messages on memberPort " + port);
+            Logger.log(Logger.MEMBER, "Listening for messages on memberPort " + port);
             
             // The authenticated perfect links will handle message reception
             // and we'll print any received messages
@@ -150,10 +149,10 @@ public class Member {
             while (true) {
                 Thread.sleep(1000);
                 
-                // Check for delivered messages from the leaderLink
-                if (leaderLink != null && leaderLink.getDeliveredSize() > 0) {
-                    System.out.println("[" + name + "] Delivered message count: " + 
-                                      leaderLink.getDeliveredSize());
+                // Check for receivedd messages from the leaderLink
+                if (leaderLink != null && leaderLink.getReceivedSize() > 0) {
+                    Logger.log(Logger.MEMBER, "Received message count: " + 
+                                      leaderLink.getReceivedSize());
                 }
             }
             
@@ -188,6 +187,7 @@ public class Member {
      * @throws Exception If initialization fails
      */
     public static void main(String[] args) throws Exception {
+        Logger.initFromArgs("--log=all");
         if (args.length < 1 || args.length > 2) {
             System.out.println("Usage: java Member <name> [outboundPort]");
             return;
@@ -195,7 +195,6 @@ public class Member {
         
         String name = args[0];
         Member member = new Member(name);
-        
         
         member.start();
     }

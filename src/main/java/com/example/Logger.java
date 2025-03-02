@@ -9,6 +9,7 @@ public class Logger {
    public static final int AUTH_LINKS = 1;      // Layer 1
    public static final int LEADER_ERRORS = 2;   // Layer 2
    public static final int CLIENT_LIBRARY = 3;   // Layer 3
+   public static final int MEMBER = 4;   // Layer 4
    
    private static boolean[] enabledLevels = new boolean[]{true, true, true};
    
@@ -88,6 +89,9 @@ public class Logger {
                    break;
                case CLIENT_LIBRARY:
                    prefix = "[ClientLibrary] ";
+                   break;
+                case MEMBER:
+                   prefix = "[Member] ";
                    break;
            }
            System.out.println(prefix + message);

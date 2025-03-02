@@ -105,7 +105,7 @@ public class ClientLibrary {
             System.out.println("1. Buy (sends <\"buy\", \"2\">)");
             System.out.println("2. Sell (sends <\"sell\", \"1\">)");
             System.out.println("3. Custom message");
-            System.out.println("4. Check delivered messages");
+            System.out.println("4. Check received messages");
             System.out.println("5. Exit");
             System.out.print("> ");
             
@@ -126,7 +126,7 @@ public class ClientLibrary {
                     sendMessage(alp2p, type, content);
                     break;
                 case "4":
-                    System.out.println("Delivered message count: " + alp2p.getDeliveredSize());
+                    System.out.println("Received message count: " + alp2p.getReceivedSize());
                     break;
                 case "5":
                     running = false;
