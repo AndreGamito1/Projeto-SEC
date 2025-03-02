@@ -43,11 +43,11 @@ public class StubbornLinks {
                     while (!ackReceived.getOrDefault(messageID, false)) {
                         socket.send(packet);
                         attempts++;
-                        System.out.println("[STUBBORN] Sent: " + message + " (Attempt " + attempts + ")");
+                        Logger.log(Logger.STUBBORN_LINKS, "Sent: " + message + " (Attempt " + attempts + ")");
+
                         Thread.sleep(5000); // Retransmit every 5 seconds
                     }
-                    
-                    System.out.println("[STUBBORN] Message successfully acknowledged: " + message.getMessageID());
+                    Logger.log(Logger.STUBBORN_LINKS, "Message successfully acknowledged: " + message.getMessageID());
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -92,7 +92,7 @@ public class StubbornLinks {
                             String messageID = receivedData.substring(4);
                             if (ackReceived.containsKey(messageID)) {
                                 ackReceived.put(messageID, true);
-                                System.out.println("[STUBBORN] Acknowledged: " + messageID);
+                                Logger.log(Logger.STUBBORN_LINKS, "Acknowledged: " + messageID);
                             }
                         } else {
                             try {
@@ -110,9 +110,9 @@ public class StubbornLinks {
                                 byte[] ackBuffer = ackMessage.getBytes();
                                 DatagramPacket ackPacket = new DatagramPacket(ackBuffer, ackBuffer.length, packet.getAddress(), packet.getPort());
                                 socket.send(ackPacket);
-                                System.out.println("[STUBBORN] Sent ACK: " + messageID);
+                                Logger.log(Logger.STUBBORN_LINKS,  "Sent ACK: " + messageID);
                             } catch (StreamCorruptedException | ClassNotFoundException | OptionalDataException e) {
-                                System.out.println("[STUBBORN] Received unreadable data, ignoring: " + e.getMessage());
+                                Logger.log(Logger.STUBBORN_LINKS, "Received unreadable data, ignoring: " + e.getMessage());
                             }
                         }
                     } catch (Exception e) {

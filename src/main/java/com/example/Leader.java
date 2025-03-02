@@ -73,7 +73,7 @@ public class Leader {
         
         json.put(name, leaderJson);
         
-        System.out.println("[" + name + "] Generated leader key pair");
+        Logger.log(Logger.LEADER_ERRORS, "[" + name + "] Generated leader key pair");
         
         // Generate and add member keys
         for (int i = 0; i < MEMBERS.length; i++) {
@@ -98,7 +98,7 @@ public class Leader {
             memberJson.put("encryptedSessionKey", encryptedSessionKey);
             json.put(memberName, memberJson);
             
-            System.out.println("[" + name + "] Generated key pair for " + memberName);
+            Logger.log(Logger.LEADER_ERRORS, "[" + name + "] Generated key pair for " + memberName);
         }
         
         // Write the JSON to the resources file
@@ -106,7 +106,7 @@ public class Leader {
             file.write(json.toString(2));
         }
         
-        System.out.println("[" + name + "] Updated resources.json with all keys and member ports");
+        Logger.log(Logger.LEADER_ERRORS, "[" + name + "] Updated resources.json with all keys and member ports");   
     }
     
     /**
@@ -167,7 +167,7 @@ public class Leader {
         Message message = new Message(payload, command);
         memberLinks.get(memberName).alp2pSend(memberName, message);
         
-        System.out.println("[" + name + "] Sent message to " + memberName + ": payload=\"" + payload + "\", command=\"" + command + "\"");
+        Logger.log(Logger.LEADER_ERRORS, "[" + name + "] Sent message to " + memberName + ": payload=\"" + payload + "\", command=\"" + command + "\"");
     }
     
     /**
@@ -182,7 +182,7 @@ public class Leader {
             sendToMember(memberName, payload, command);
         }
         
-        System.out.println("[" + name + "] Broadcasted message to all members: payload=\"" + payload + "\", command=\"" + command + "\"");
+        Logger.log(Logger.LEADER_ERRORS, "[" + name + "] Broadcasted message to all members: payload=\"" + payload + "\", command=\"" + command + "\"");
     }
     
     /**
@@ -193,8 +193,7 @@ public class Leader {
     public void testCommunication() throws Exception {
         
         String command = "TEST_MESSAGE";
-        
-        System.out.println("[" + name + "] Starting communication test");
+        Logger.log(Logger.LEADER_ERRORS, "[" + name + "] Starting communication test");
         
         // Send the mock message to each member
         for (String memberName : memberLinks.keySet()) {
@@ -217,7 +216,7 @@ public class Leader {
             System.out.println("[" + name + "] Delivered messages for " + memberName + ": " + deliveredCount);
         }
         
-        System.out.println("[" + name + "] Communication test completed");
+        Logger.log(Logger.LEADER_ERRORS, "[" + name + "] Communication test completed");
     }
     
     /**
@@ -228,14 +227,14 @@ public class Leader {
         
         try {
             // Start listening for messages
-            System.out.println("[" + name + "] Listening for messages on port " + port);
+            Logger.log(Logger.LEADER_ERRORS, "[" + name + "] Listening for messages on port " + port);
             
             // Print member connections with their corresponding leader ports
             for (String memberName : memberLinks.keySet()) {
                 int memberPort = memberPorts.get(memberName);
                 int leaderPortForMember = memberPort + 1000;
-                System.out.println("[" + name + "] Connection to " + memberName + ": member port " + memberPort + 
-                                   ", leader port " + leaderPortForMember);
+                Logger.log(Logger.LEADER_ERRORS, "[" + name + "] Connection to " + memberName + ": member port " + memberPort + 
+                            ", leader port " + leaderPortForMember);
             }
             
             // Run the communication test
@@ -244,13 +243,13 @@ public class Leader {
             // Print periodic status
             while (true) {
                 Thread.sleep(5000);
-                System.out.println("[" + name + "] Leader is running...");
+                Logger.log(Logger.LEADER_ERRORS, "[" + name + "] Leader is running...");
                 
                 // Report on delivered messages
                 for (String memberName : memberLinks.keySet()) {
                     AuthenticatedPerfectLinks link = memberLinks.get(memberName);
                     int deliveredCount = link.getDeliveredSize();
-                    System.out.println("[" + name + "] Delivered messages for " + memberName + ": " + deliveredCount);
+                    Logger.log(Logger.LEADER_ERRORS, "[" + name + "] Delivered messages for " + memberName + ": " + deliveredCount);
                 }
             }
         } catch (Exception e) {
@@ -267,10 +266,11 @@ public class Leader {
      */
     public static void main(String[] args) throws Exception {
         Leader leader = new Leader(BASE_PORT);
-        
+        Logger.initFromArgs("--log=all"); 
+
         if (args.length > 0 && args[0].equalsIgnoreCase("test")) {
             // Only run the communication test
-            System.out.println("[leader] Running in test mode");
+            Logger.log(Logger.LEADER_ERRORS, "[leader] Running in test mode");
             leader.testCommunication();
         } else {
             // Run the full leader service

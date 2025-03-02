@@ -9,6 +9,7 @@ public class AuthenticatedPerfectLinksTest {
             System.out.println("Usage: java AuthenticatedPerfectLinksTest <serverPort> <destPort>");
             return;
         }
+        Logger.initFromArgs("--log=all");
 
         int serverPort = Integer.parseInt(args[0]); // Server port
         int destPort = Integer.parseInt(args[1]);   // Destination port

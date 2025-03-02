@@ -74,7 +74,7 @@ public class ClientLibrary {
         if (clientJson.has("encryptedSessionKey")) {
             String encryptedSessionKey = clientJson.getString("encryptedSessionKey");
             this.sessionKey = CryptoUtils.decryptAESKeyWithRSA(privateKey, encryptedSessionKey);
-            System.out.println("[ClientLibrary] Decrypted session key from resources.json");
+            Logger.log(Logger.CLIENT_LIBRARY, "Decrypted session key from resources.json");
         }
         
         // Load leader port
@@ -84,10 +84,9 @@ public class ClientLibrary {
         
         JSONObject leaderJson = json.getJSONObject("leader");
         this.leaderPort = Integer.parseInt(leaderJson.getString("port"));
-        
-        System.out.println("[ClientLibrary] Loaded configuration from resources.json");
-        System.out.println("[ClientLibrary] Client port: " + clientPort);
-        System.out.println("[ClientLibrary] Leader port: " + leaderPort);
+        Logger.log(Logger.CLIENT_LIBRARY, "Loaded configuration from resources.json");
+        Logger.log(Logger.CLIENT_LIBRARY, "Client port: " + clientPort);
+        Logger.log(Logger.CLIENT_LIBRARY, "Leader port: " + leaderPort);
     }
     
     /**
@@ -97,8 +96,8 @@ public class ClientLibrary {
         Scanner scanner = new Scanner(System.in);
         AuthenticatedPerfectLinks alp2p = new AuthenticatedPerfectLinks(LEADER_HOST, leaderPort, clientPort);
         
-        System.out.println("Client Library started. Connected to Leader on port " + leaderPort);
-        System.out.println("Listening on port " + clientPort);
+        Logger.log(Logger.CLIENT_LIBRARY, "Client Library started. Connected to Leader on port " + leaderPort);
+        Logger.log(Logger.CLIENT_LIBRARY, "Listening on port " + clientPort);
         
         boolean running = true;
         while (running) {
@@ -148,6 +147,6 @@ public class ClientLibrary {
     private void sendMessage(AuthenticatedPerfectLinks alp2p, String command, String payload) throws Exception {
         Message message = new Message(payload, command);
         alp2p.alp2pSend(CLIENT_NAME, message);
-        System.out.println("Sent message: payload=\"" + payload + "\", command=\"" + command + "\", ID=" + message.getMessageID());
+        Logger.log(Logger.CLIENT_LIBRARY, "Sent message: payload=\"" + payload + "\", command=\"" + command + "\", ID=" + message.getMessageID());
     }
 }

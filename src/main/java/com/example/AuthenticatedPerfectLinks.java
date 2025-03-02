@@ -15,7 +15,8 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
     public AuthenticatedPerfectLinks(String destIP, int destPort, int hostPort) {
         try {
             this.stubbornLink = new StubbornLinks(destIP, destPort, hostPort, this);
-             this.delivered = new ArrayList<>();
+            this.delivered = new ArrayList<>();
+            Logger.log(Logger.AUTH_LINKS, "AuthenticatedPerfectLinks initialized");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -29,11 +30,10 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
     
     public void alp2pDeliver(AuthenticatedMessage authMessage) {
         if (verifyauth(authMessage)) {
-            System.out.println("[ALP2P] Message verified: " + authMessage.getMessageID());
+            Logger.log(Logger.AUTH_LINKS, "Message verified:" +authMessage.getMessageID());
             delivered.add(authMessage);
-            System.out.println("[ALP2P] Received Authenticated Message with ID: " + authMessage.getMessageID());
-            System.out.println("[ALP2P] Auth String: " + authMessage.getAuthString());
-            System.out.println("[ALP2P] Original Message: " + authMessage.toString()); // Print the original message
+            Logger.log(Logger.AUTH_LINKS, "Received Authenticated Message" + authMessage.toString());
+         
         }
     }
     /*TODO: Alter so it uses the received key */
