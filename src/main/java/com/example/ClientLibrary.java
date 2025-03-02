@@ -25,6 +25,7 @@ public class ClientLibrary {
     private SecretKey sessionKey;
     
     public static void main(String[] args) {
+        Logger.initFromArgs("--log=all"); 
         try {
             ClientLibrary library = new ClientLibrary();
             library.loadConfiguration();
@@ -55,7 +56,7 @@ public class ClientLibrary {
         }
         
         JSONObject clientJson = json.getJSONObject(CLIENT_NAME);
-        this.clientPort = Integer.parseInt(clientJson.getString("port"));
+        this.clientPort = Integer.parseInt(clientJson.getString("memberPort"));
         
         // Load public key
         String encodedPubKey = clientJson.getString("pubKey");
@@ -77,13 +78,7 @@ public class ClientLibrary {
             Logger.log(Logger.CLIENT_LIBRARY, "Decrypted session key from resources.json");
         }
         
-        // Load leader port
-        if (!json.has("leader")) {
-            throw new Exception("Leader configuration not found in resources.json");
-        }
-        
-        JSONObject leaderJson = json.getJSONObject("leader");
-        this.leaderPort = Integer.parseInt(leaderJson.getString("port"));
+        this.leaderPort = clientPort + 1000;
         Logger.log(Logger.CLIENT_LIBRARY, "Loaded configuration from resources.json");
         Logger.log(Logger.CLIENT_LIBRARY, "Client port: " + clientPort);
         Logger.log(Logger.CLIENT_LIBRARY, "Leader port: " + leaderPort);
@@ -94,41 +89,53 @@ public class ClientLibrary {
      */
     public void startTerminalInterface() throws Exception {
         Scanner scanner = new Scanner(System.in);
+        Logger.log(Logger.CLIENT_LIBRARY, "Starting Client Library terminal interface, connecting to Leader on ip: " + LEADER_HOST 
+        + " and port: " + leaderPort + " from client port: " + clientPort);
+        System.out.println("Starting Client Library terminal interface, connecting to Leader on ip: " + LEADER_HOST 
+        + " and port: " + leaderPort + " from client port: " + clientPort);
         AuthenticatedPerfectLinks alp2p = new AuthenticatedPerfectLinks(LEADER_HOST, leaderPort, clientPort);
-        
-        Logger.log(Logger.CLIENT_LIBRARY, "Client Library started. Connected to Leader on port " + leaderPort);
-        Logger.log(Logger.CLIENT_LIBRARY, "Listening on port " + clientPort);
+
         
         boolean running = true;
         while (running) {
             System.out.println("\nSelect an option:");
-            System.out.println("1. Buy (sends <\"buy\", \"2\">)");
-            System.out.println("2. Sell (sends <\"sell\", \"1\">)");
-            System.out.println("3. Custom message");
-            System.out.println("4. Check received messages");
-            System.out.println("5. Exit");
+            System.out.println("1. Send <\"TEST\", \"1\"> to run test once");
+            System.out.println("2. Send <\"TEST\", \"2\"> to run test twice");
+            System.out.println("3. Send <\"TEST\", \"3\"> to run test three times");
+            System.out.println("4. Send custom test count");
+            System.out.println("5. Send custom command");
+            System.out.println("6. Check received messages");
+            System.out.println("7. Exit");
             System.out.print("> ");
             
             String input = scanner.nextLine().trim();
             
             switch (input) {
                 case "1":
-                    sendMessage(alp2p, "buy", "2");
+                    sendMessage(alp2p, "TEST", "1");
                     break;
                 case "2":
-                    sendMessage(alp2p, "sell", "1");
+                    sendMessage(alp2p, "TEST", "2");
                     break;
                 case "3":
-                    System.out.print("Enter message type: ");
-                    String type = scanner.nextLine().trim();
-                    System.out.print("Enter message content: ");
-                    String content = scanner.nextLine().trim();
-                    sendMessage(alp2p, type, content);
+                    sendMessage(alp2p, "TEST", "3");
                     break;
                 case "4":
-                    System.out.println("Received message count: " + alp2p.getReceivedSize());
+                    System.out.print("Enter number of test repetitions: ");
+                    String count = scanner.nextLine().trim();
+                    sendMessage(alp2p, "TEST", count);
                     break;
                 case "5":
+                    System.out.print("Enter command type: ");
+                    String command = scanner.nextLine().trim();
+                    System.out.print("Enter command payload: ");
+                    String payload = scanner.nextLine().trim();
+                    sendMessage(alp2p, command, payload);
+                    break;
+                case "6":
+                    System.out.println("Received message count: " + alp2p.getReceivedSize());
+                    break;
+                case "7":
                     running = false;
                     System.out.println("Exiting...");
                     break;
@@ -147,6 +154,7 @@ public class ClientLibrary {
     private void sendMessage(AuthenticatedPerfectLinks alp2p, String command, String payload) throws Exception {
         Message message = new Message(payload, command);
         alp2p.alp2pSend(CLIENT_NAME, message);
-        Logger.log(Logger.CLIENT_LIBRARY, "Sent message: payload=\"" + payload + "\", command=\"" + command + "\", ID=" + message.getMessageID());
+        Logger.log(Logger.CLIENT_LIBRARY, "Sent message: payload=\"" + payload + "\", command=\"" + command + "\"");
+        System.out.println("Message sent successfully!");
     }
 }

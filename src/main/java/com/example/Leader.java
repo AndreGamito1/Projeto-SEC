@@ -9,6 +9,7 @@ import java.security.PublicKey;
 import java.util.Base64;
 import javax.crypto.SecretKey;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.json.JSONObject;
 
@@ -193,6 +194,7 @@ public class Leader {
         
         String command = "TEST_MESSAGE";
         Logger.log(Logger.LEADER_ERRORS, "Starting communication test");
+
         
         // Send the mock message to each member
         for (String memberName : memberLinks.keySet()) {
@@ -209,17 +211,17 @@ public class Leader {
         Thread.sleep(2000);
         
         // Report on received messages
+        Logger.log(Logger.LEADER_ERRORS, "-----------------TEST RECEIVED MESSAGES STATUS-----------------");
         for (String memberName : memberLinks.keySet()) {
             AuthenticatedPerfectLinks link = memberLinks.get(memberName);
             int receivedCount = link.getReceivedSize();
             Logger.log(Logger.LEADER_ERRORS, "Received messages for " + memberName + ": " + receivedCount);
         }
-        
-        Logger.log(Logger.LEADER_ERRORS, "Communication test completed");
+        Logger.log(Logger.LEADER_ERRORS, "Communication test complete");
     }
     
     /**
-     * Starts the leader service.
+     * Starts the leader service and begins receiving commands from clientLibrary.
      */
     public void start() {
         Logger.log(Logger.LEADER_ERRORS, "Initializing...");
@@ -233,30 +235,126 @@ public class Leader {
                 int memberPort = memberPorts.get(memberName);
                 int leaderPortForMember = memberPort + 1000;
                 Logger.log(Logger.LEADER_ERRORS, "Connection to " + memberName + ": member port " + memberPort + 
-                            ", leader port " + leaderPortForMember);
+                        ", leader port " + leaderPortForMember);
             }
             
-            // Run the communication test
-            testCommunication();
+            // Start the command processing thread
+            Thread commandThread = new Thread(this::receiveCommands);
+            commandThread.setDaemon(true);
+            commandThread.start();
             
-            // Print periodic status
+            // Run the main leader loop
             while (true) {
                 Thread.sleep(5000);
                 Logger.log(Logger.LEADER_ERRORS, "Leader is running...");
-                
-                // Report on received messages
-                for (String memberName : memberLinks.keySet()) {
-                    AuthenticatedPerfectLinks link = memberLinks.get(memberName);
-                    int receivedCount = link.getReceivedSize();
-                    Logger.log(Logger.LEADER_ERRORS, "Received messages for " + memberName + ": " + receivedCount);
-                }
+                logReceivedMessagesStatus();
             }
+            
         } catch (Exception e) {
             System.err.println("Error in " + name + ": " + e.getMessage());
             e.printStackTrace();
         }
     }
-    
+
+    /**
+     * Continuously checks for and processes commands from the clientLibrary.
+     * This runs in a separate thread.
+     */
+    private void receiveCommands() {
+        Logger.log(Logger.LEADER_ERRORS, "Starting to receive commands from clientLibrary...");
+        
+        try {
+            // Get clientLibrary link
+            AuthenticatedPerfectLinks clientLink = memberLinks.get("clientLibrary");
+            if (clientLink == null) {
+                throw new Exception("No link established with clientLibrary");
+            }
+            
+            // Previous received message count
+            int previousCount = 0;
+            
+            // Continuously check for new messages
+            while (true) {
+                // Check if there are any new messages from clientLibrary
+                List<AuthenticatedMessage> messages = clientLink.getReceivedMessages();
+                int currentCount = messages.size();
+                
+                // If we have new messages
+                if (currentCount > previousCount) {
+                    // Process new messages (from previous count to current count)
+                    for (int i = previousCount; i < currentCount; i++) {
+                        AuthenticatedMessage authMessage = messages.get(i);
+                        processCommand(authMessage);
+                    }
+                    
+                    previousCount = currentCount;
+                }
+                
+                // Short sleep to prevent CPU hogging
+                Thread.sleep(100);
+            }
+        } catch (Exception e) {
+            Logger.log(Logger.LEADER_ERRORS, "Error while receiving commands: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Processes commands received from clientLibrary.
+     * 
+     * @param authMessage The authenticated message containing the command
+     * @throws Exception If processing fails
+     */
+    private void processCommand(AuthenticatedMessage authMessage) throws Exception {
+        String command = authMessage.getCommand();
+        String payload = authMessage.getPayload();
+        
+        Logger.log(Logger.LEADER_ERRORS, "Received command: " + command + " with payload: " + payload);
+        
+        // Parse the number of times to execute (if provided)
+        int times = 1; // Default value
+        try {
+            times = Integer.parseInt(payload);
+        } catch (NumberFormatException e) {
+            Logger.log(Logger.LEADER_ERRORS, "Invalid number format in payload, defaulting to 1");
+        }
+        
+        // Process different commands
+        switch (command) {
+            case "TEST":
+                Logger.log(Logger.LEADER_ERRORS, "Executing test command " + times + " time(s)");
+                for (int i = 0; i < times; i++) {
+                    testCommunication();
+                    // Add a small delay between tests if running multiple times
+                    if (i < times - 1) {
+                        Thread.sleep(1000);
+                    }
+                }
+                break;
+                
+            // Add more commands as needed
+            case "BROADCAST":
+                Logger.log(Logger.LEADER_ERRORS, "Executing broadcast command");
+                broadcastToMembers("Broadcast from leader", "LEADER_BROADCAST");
+                break;
+                
+            default:
+                Logger.log(Logger.LEADER_ERRORS, "Unknown command: " + command);
+                break;
+        }
+    }
+
+    /**
+     * Logs the status of received messages from all members.
+     */
+    private void logReceivedMessagesStatus() {
+        Logger.log(Logger.LEADER_ERRORS, "-----------------RECEIVED MESSAGES STATUS-----------------");
+        for (String memberName : memberLinks.keySet()) {
+            AuthenticatedPerfectLinks link = memberLinks.get(memberName);
+            int receivedCount = link.getReceivedSize();
+            Logger.log(Logger.LEADER_ERRORS, "Received messages for " + memberName + ": " + receivedCount);
+        }
+    }
     /**
      * Main method to start a leader instance.
      * 
@@ -265,7 +363,7 @@ public class Leader {
      */
     public static void main(String[] args) throws Exception {
         Leader leader = new Leader(BASE_PORT);
-        Logger.initFromArgs("--log=2,3"); 
+        Logger.initFromArgs("--log=2,3, 0"); 
 
         if (args.length > 0 && args[0].equalsIgnoreCase("test")) {
             // Only run the communication test
