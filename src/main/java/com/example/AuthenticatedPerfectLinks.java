@@ -26,6 +26,7 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
         String authString = authenticate(message);
         AuthenticatedMessage authMessage = new AuthenticatedMessage(message, authString);
         stubbornLink.sp2pSend(authMessage);
+        Logger.log(Logger.AUTH_LINKS, "Message Sent:" + message.getPayload());
     }
     
     public void alp2pReceive(AuthenticatedMessage authMessage) {

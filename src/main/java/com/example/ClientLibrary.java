@@ -1,147 +1,170 @@
 package com.example;
-import java.io.File;
+
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.security.KeyFactory;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.Base64;
+import java.util.List;
 import java.util.Scanner;
-
-import javax.crypto.SecretKey;
 import org.json.JSONObject;
 
+/**
+ * Client library for interacting with the Byzantine consensus blockchain
+ */
 public class ClientLibrary {
-    private static final String RESOURCES_FILE = "shared/resources.json";
-    private static final String LEADER_HOST = "localhost";
-    private static final String CLIENT_NAME = "clientLibrary";
-    
+    private String name = "clientLibrary";
+    private int port;
     private int leaderPort;
-    private int clientPort;
-    private PrivateKey privateKey;
-    private PublicKey publicKey;
-    private SecretKey sessionKey;
+    private AuthenticatedPerfectLinks leaderLink;
     
-    public static void main(String[] args) {
-        Logger.initFromArgs("--log=all"); 
-        try {
-            ClientLibrary library = new ClientLibrary();
-            library.loadConfiguration();
-            library.startTerminalInterface();
-        } catch (Exception e) {
-            System.err.println("Error in ClientLibrary: " + e.getMessage());
-            e.printStackTrace();
-        }
+    /**
+     * Constructor for ClientLibrary.
+     * 
+     * @throws Exception If initialization fails
+     */
+    public ClientLibrary() throws Exception {
+        // Load configuration from resources.json
+        loadConfig();
+        
+        // Create a link to the leader
+        String leaderIP = "127.0.0.1";
+        System.out.println("Initiating link to leader at " + leaderIP + ":" + leaderPort + " from port " + port);
+        leaderLink = new AuthenticatedPerfectLinks(leaderIP, leaderPort, port);
+        
+        Logger.log(Logger.CLIENT_LIBRARY, "Initialized client library on port " + port);
     }
     
     /**
-     * Loads the client configuration from resources.json
+     * Loads configuration from resources.json.
+     * 
+     * @throws Exception If loading fails
      */
-    private void loadConfiguration() throws Exception {
-        // Ensure the resources file exists
-        File resourcesFile = new File(RESOURCES_FILE);
-        if (!resourcesFile.exists()) {
-            throw new Exception("Resources file not found: " + RESOURCES_FILE);
-        }
-        
-        // Read the JSON file
-        String content = new String(Files.readAllBytes(Paths.get(RESOURCES_FILE)));
+    private void loadConfig() throws Exception {
+        String content = new String(Files.readAllBytes(Paths.get("shared/resources.json")));
         JSONObject json = new JSONObject(content);
         
-        // Load client details
-        if (!json.has(CLIENT_NAME)) {
-            throw new Exception("Client configuration not found in resources.json");
+        if (!json.has(name)) {
+            throw new Exception("ClientLibrary not found in resources.json");
         }
         
-        JSONObject clientJson = json.getJSONObject(CLIENT_NAME);
-        this.clientPort = Integer.parseInt(clientJson.getString("memberPort"));
+        JSONObject clientJson = json.getJSONObject(name);
+        this.port = Integer.parseInt(clientJson.getString("memberPort"));
+        this.leaderPort = this.port + 1000;
         
-        // Load public key
-        String encodedPubKey = clientJson.getString("pubKey");
-        byte[] publicKeyBytes = Base64.getDecoder().decode(encodedPubKey);
-        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-        X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
-        this.publicKey = keyFactory.generatePublic(publicKeySpec);
+        // Leader port is at BASE_PORT (5000)
         
-        // Load private key
-        String encodedPrivateKey = clientJson.getString("privateKey");
-        byte[] privateKeyBytes = Base64.getDecoder().decode(encodedPrivateKey);
-        PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
-        this.privateKey = keyFactory.generatePrivate(privateKeySpec);
-        
-        // Decrypt session key if it exists
-        if (clientJson.has("encryptedSessionKey")) {
-            String encryptedSessionKey = clientJson.getString("encryptedSessionKey");
-            this.sessionKey = CryptoUtils.decryptAESKeyWithRSA(privateKey, encryptedSessionKey);
-            Logger.log(Logger.CLIENT_LIBRARY, "Decrypted session key from resources.json");
-        }
-        
-        this.leaderPort = clientPort + 1000;
-        Logger.log(Logger.CLIENT_LIBRARY, "Loaded configuration from resources.json");
-        Logger.log(Logger.CLIENT_LIBRARY, "Client port: " + clientPort);
-        Logger.log(Logger.CLIENT_LIBRARY, "Leader port: " + leaderPort);
     }
     
     /**
-     * Starts the client terminal interface
+     * Appends a string to the blockchain.
+     * 
+     * @param data The string to append
+     * @return true if the request was sent, false otherwise
+     * @throws Exception If sending fails
      */
-    public void startTerminalInterface() throws Exception {
-        Scanner scanner = new Scanner(System.in);
-        Logger.log(Logger.CLIENT_LIBRARY, "Starting Client Library terminal interface, connecting to Leader on ip: " + LEADER_HOST 
-        + " and port: " + leaderPort + " from client port: " + clientPort);
-        System.out.println("Starting Client Library terminal interface, connecting to Leader on ip: " + LEADER_HOST 
-        + " and port: " + leaderPort + " from client port: " + clientPort);
-        AuthenticatedPerfectLinks alp2p = new AuthenticatedPerfectLinks(LEADER_HOST, leaderPort, clientPort);
-
+    public boolean appendToBlockchain(String data) throws Exception {
+        sendToLeader(data, "APPEND_BLOCKCHAIN");
+        Logger.log(Logger.CLIENT_LIBRARY, "Sent append request: " + data);
+        return true;
+    }
+    
+    /**
+     * Gets the current blockchain.
+     * 
+     * @return The blockchain as a formatted string
+     * @throws Exception If getting fails
+     */
+    public String getBlockchain() throws Exception {
+        sendToLeader("", "GET_BLOCKCHAIN");
+        Logger.log(Logger.CLIENT_LIBRARY, "Sent get blockchain request");
         
+        // Wait for response (in a real implementation, we'd use a CompletableFuture)
+        Thread.sleep(1000);
+        
+        // Get the response
+        List<AuthenticatedMessage> messages = leaderLink.getReceivedMessages();
+        for (int i = 0; i < messages.size(); i++) {
+            Message message = messages.get(i);
+            if (message.getCommand().equals("BLOCKCHAIN_RESULT")) {
+                return message.getPayload();
+            }
+        }
+        
+        return "No blockchain data received";
+    }
+    
+    /**
+     * Sends a test message to the leader.
+     * 
+     * @param times Number of times to run the test
+     * @throws Exception If sending fails
+     */
+    public void sendTestMessage(int times) throws Exception {
+        sendToLeader(String.valueOf(times), "TEST");
+        Logger.log(Logger.CLIENT_LIBRARY, "Sent test message for " + times + " run(s)");
+    }
+    
+    /**
+     * Sends a message to the leader.
+     * 
+     * @param payload The message payload
+     * @param command The command to execute
+     * @throws Exception If sending fails
+     */
+    private void sendToLeader(String payload, String command) throws Exception {
+        Message message = new Message(payload, command);
+        leaderLink.alp2pSend("leader", message);
+    }
+    
+    /**
+     * Displays a menu and processes user input.
+     */
+    public void runMenu() {
+        Scanner scanner = new Scanner(System.in);
         boolean running = true;
+        
         while (running) {
-            System.out.println("\nSelect an option:");
-            System.out.println("1. Send <\"TEST\", \"1\"> to run test once");
-            System.out.println("2. Send <\"TEST\", \"2\"> to run test twice");
-            System.out.println("3. Send <\"TEST\", \"3\"> to run test three times");
-            System.out.println("4. Send custom test count");
-            System.out.println("5. Send custom command");
-            System.out.println("6. Check received messages");
-            System.out.println("7. Exit");
-            System.out.print("> ");
+            System.out.println("\n=== Blockchain Client Menu ===");
+            System.out.println("1. Append to blockchain");
+            System.out.println("2. Get blockchain");
+            System.out.println("3. Send test message");
+            System.out.println("0. Exit");
+            System.out.print("Enter your choice: ");
             
             String input = scanner.nextLine().trim();
             
-            switch (input) {
-                case "1":
-                    sendMessage(alp2p, "TEST", "1");
-                    break;
-                case "2":
-                    sendMessage(alp2p, "TEST", "2");
-                    break;
-                case "3":
-                    sendMessage(alp2p, "TEST", "3");
-                    break;
-                case "4":
-                    System.out.print("Enter number of test repetitions: ");
-                    String count = scanner.nextLine().trim();
-                    sendMessage(alp2p, "TEST", count);
-                    break;
-                case "5":
-                    System.out.print("Enter command type: ");
-                    String command = scanner.nextLine().trim();
-                    System.out.print("Enter command payload: ");
-                    String payload = scanner.nextLine().trim();
-                    sendMessage(alp2p, command, payload);
-                    break;
-                case "6":
-                    System.out.println("Received message count: " + alp2p.getReceivedSize());
-                    break;
-                case "7":
-                    running = false;
-                    System.out.println("Exiting...");
-                    break;
-                default:
-                    System.out.println("Invalid option. Please try again.");
-                    break;
+            try {
+                switch (input) {
+                    case "1":
+                        System.out.print("Enter data to append: ");
+                        String data = scanner.nextLine();
+                        if (appendToBlockchain(data)) {
+                            System.out.println("Append request sent successfully");
+                        }
+                        break;
+                        
+                    case "2":
+                        String blockchain = getBlockchain();
+                        System.out.println("\n--- Current Blockchain ---");
+                        System.out.println(blockchain);
+                        break;
+                        
+                    case "3":
+                        System.out.print("Enter number of test runs: ");
+                        int times = Integer.parseInt(scanner.nextLine());
+                        sendTestMessage(times);
+                        System.out.println("Test message sent");
+                        break;
+                        
+                    case "0":
+                        running = false;
+                        System.out.println("Exiting...");
+                        break;
+                        
+                    default:
+                        System.out.println("Invalid option, please try again");
+                        break;
+                }
+            } catch (Exception e) {
+                System.err.println("Error: " + e.getMessage());
             }
         }
         
@@ -149,12 +172,18 @@ public class ClientLibrary {
     }
     
     /**
-     * Sends a message to the leader
+     * Main method that runs the interactive client.
+     * 
+     * @param args Command line arguments (none required)
+     * @throws Exception If client initialization fails
      */
-    private void sendMessage(AuthenticatedPerfectLinks alp2p, String command, String payload) throws Exception {
-        Message message = new Message(payload, command);
-        alp2p.alp2pSend(CLIENT_NAME, message);
-        Logger.log(Logger.CLIENT_LIBRARY, "Sent message: payload=\"" + payload + "\", command=\"" + command + "\"");
-        System.out.println("Message sent successfully!");
+    public static void main(String[] args) throws Exception {
+        Logger.initFromArgs("--log=clientLibrary");
+        
+        System.out.println("Initializing blockchain client...");
+        ClientLibrary client = new ClientLibrary();
+        
+        // Run the interactive menu
+        client.runMenu();
     }
 }
