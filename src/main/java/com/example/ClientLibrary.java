@@ -76,14 +76,15 @@ public class ClientLibrary {
         sendToLeader("", "GET_BLOCKCHAIN");
         Logger.log(Logger.CLIENT_LIBRARY, "Sent get blockchain request");
         
-        // Wait for response (in a real implementation, we'd use a CompletableFuture)
+        // Wait for response 
         Thread.sleep(1000);
         
         // Get the response
         List<AuthenticatedMessage> messages = leaderLink.getReceivedMessages();
-        for (int i = 0; i < messages.size(); i++) {
+        for (int i = messages.size() - 1; i >= 0; i--) {
             Message message = messages.get(i);
             if (message.getCommand().equals("BLOCKCHAIN_RESULT")) {
+                System.out.println(message.getPayload());
                 return message.getPayload();
             }
         }
