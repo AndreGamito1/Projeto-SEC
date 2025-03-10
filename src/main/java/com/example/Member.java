@@ -20,6 +20,9 @@ public class Member {
     private int currentEpoch = 0;
     private Map<Integer, EpochState> epochs = new HashMap<>();
     
+    // Add connections attribute to store symmetric keys
+    protected Map<String, String> connections = new HashMap<>();
+    
     // Track the last processed message index
     private int lastProcessedIndex = 0;
     
@@ -61,6 +64,9 @@ public class Member {
         String leaderIP = "127.0.0.1";
         System.out.println("Initiating link to leader at " + leaderIP + ":" + leaderPort + " from port " + port);
         leaderLink = new AuthenticatedPerfectLinks(leaderIP, leaderPort, port);
+        
+        // Initialize connections map with a symmetric key for the leader
+        connections.put("leader", "");
         
         Logger.log(Logger.MEMBER, "Initialized member: " + name + " on port " + port);
     }
@@ -197,11 +203,18 @@ public class Member {
         System.out.println("Received READ request for epoch " + epoch);
         System.out.println("Current blockchain: " + String.join(", ", blockchain));
 
-        // Reply with the last value in our blockchain
+        // Get the most recent value (valts, val)
         String lastValue = blockchain.isEmpty() ? "" : blockchain.get(blockchain.size() - 1);
-        sendToLeader(epoch + "|" + lastValue, CMD_READ_REPLY);
         
-        Logger.log(Logger.MEMBER, "Sent READ_REPLY for epoch " + epoch + " with value: " + lastValue);
+        // Create the writeSet (all values in the blockchain)
+        String writeSet = String.join("|", blockchain);
+        
+        // Send reply with format: "epoch|lastValue|writeSet"
+        sendToLeader(epoch + "|" + lastValue + "|" + writeSet, CMD_READ_REPLY);
+        
+        Logger.log(Logger.MEMBER, "Sent READ_REPLY for epoch " + epoch + 
+                " with lastValue: " + lastValue + 
+                " and writeSet: " + writeSet);
     }
     
     /**
@@ -307,6 +320,34 @@ public class Member {
     private void sendToLeader(String payload, String command) throws Exception {
         Message message = new Message(payload, command);
         leaderLink.alp2pSend("leader", message);
+    }
+    
+    /**
+     * Gets the connections map containing symmetric keys.
+     * 
+     * @return The connections map
+     */
+    public Map<String, String> getConnections() {
+        return connections;
+    }
+    
+    /**
+     * Sets a symmetric key for a connection.
+     * 
+     * @param entityName The name of the entity (e.g., "leader" or another member)
+     * @param symmetricKey The symmetric key to use
+     */
+    public void setConnectionKey(String entityName, String symmetricKey) {
+        connections.put(entityName, symmetricKey);
+    }
+    
+    /**
+     * Gets the name of this member.
+     * 
+     * @return The member name
+     */
+    public String getName() {
+        return name;
     }
     
     /**

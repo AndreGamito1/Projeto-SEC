@@ -1,5 +1,5 @@
 {
-  "leader": {"leaderPort": "5000"},
+  "leader": {"memberPort": "5000"},
   "member4": {"memberPort": "5004"},
   "clientLibrary": {"memberPort": "5005"},
   "member2": {"memberPort": "5002"},

@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import org.json.JSONObject;
 
-public class Leader {
+public class Leader extends Member {
     private String name = "leader";
     private int port;
     private static final String RESOURCES_FILE = "shared/resources.json";
@@ -35,10 +35,16 @@ public class Leader {
      * @throws Exception If initialization fails
      */
     public Leader(int port) throws Exception {
+        // Call the Member constructor with "leader" as the name
+        super("leader");
+        
         this.port = port;     
         // Initialize member ports
         for (int i = 0; i < MEMBERS.length; i++) {
             memberPorts.put(MEMBERS[i], BASE_PORT + i + 1);
+            
+            // Initialize connections map entry for this member with an empty key (to be filled later)
+            connections.put(MEMBERS[i], "");
         }
         
         // Generate config file with ports
@@ -68,7 +74,7 @@ public class Leader {
         
         // Add leader info
         JSONObject leaderJson = new JSONObject();
-        leaderJson.put("leaderPort", String.valueOf(port));
+        leaderJson.put("memberPort", String.valueOf(port));
         json.put(name, leaderJson);
         
         Logger.log(Logger.LEADER_ERRORS, "Generated leader config");
@@ -195,8 +201,9 @@ public class Leader {
     }
     
     /**
-     * Starts the leader service and begins receiving commands from clientLibrary.
+     * Override the Member's start method to provide Leader-specific behavior.
      */
+    @Override
     public void start() {
         Logger.log(Logger.LEADER_ERRORS, "Initializing...");
         
@@ -407,11 +414,7 @@ public class Leader {
                 
             case "GET_BLOCKCHAIN":
                 Logger.log(Logger.LEADER_ERRORS, "Executing get blockchain command");
-                List<String> blockchain = epochConsensus.getBlockchain();
-                String blockchainStr = String.join(", ", blockchain);
-                Logger.log(Logger.LEADER_ERRORS, "Current blockchain: " + blockchainStr);
-                // Send response to the client
-                sendToMember("clientLibrary", blockchainStr, "BLOCKCHAIN_RESULT");
+                processGetBlockchainCommand();
                 break;
                 
             default:
@@ -419,6 +422,32 @@ public class Leader {
                 break;
         }
     }
+    /**
+     * Process a GET_BLOCKCHAIN command from the client.
+     * Uses the Byzantine read phase to collect blockchain data from members.
+     * 
+     * @throws Exception If processing fails
+     */
+    private void processGetBlockchainCommand() throws Exception {
+        Logger.log(Logger.LEADER_ERRORS, "Executing get blockchain command using Byzantine read phase");
+        
+        try {
+            // Use the Byzantine read phase to get the blockchain
+            List<String> blockchain = epochConsensus.getBlockchain();
+            
+            // Format the blockchain for display
+            String blockchainStr = String.join(" -> ", blockchain);
+            
+            Logger.log(Logger.LEADER_ERRORS, "Retrieved blockchain using Byzantine read: " + blockchainStr);
+            
+            // Send response to the client
+            sendToMember("clientLibrary", blockchainStr, "BLOCKCHAIN_RESULT");
+            
+        } catch (Exception e) {
+            Logger.log(Logger.LEADER_ERRORS, "Error retrieving blockchain: " + e.getMessage());
+            sendToMember("clientLibrary", "Error: " + e.getMessage(), "BLOCKCHAIN_RESULT");
+        }
+    } 
     
     /**
      * Gets the EpochConsensus instance.
@@ -428,6 +457,8 @@ public class Leader {
     public EpochConsensus getEpochConsensus() {
         return epochConsensus;
     }
+    
+    // These methods are already inherited from Member class and don't need to be redefined
     
     /**
      * Main method to start a leader instance.
