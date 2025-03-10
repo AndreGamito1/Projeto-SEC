@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
+import javax.crypto.SecretKey;
 import org.json.JSONObject;
 
 public class Leader extends Member {
@@ -21,6 +22,12 @@ public class Leader extends Member {
     
     private Map<String, AuthenticatedPerfectLinks> memberLinks = new HashMap<>();
     private Map<String, Integer> memberPorts = new HashMap<>();
+    private Map<String, SecretKey> memberKeys = new HashMap<>(); // Store AES keys for each member
+    
+    // Constants for key exchange protocol
+    private static final String CMD_KEY_EXCHANGE = "KEY_EXCHANGE";
+    private static final String CMD_KEY_ACK = "KEY_ACK";
+    private static final String CMD_KEY_OK = "KEY_OK";
     
     // Change handler type to accept AuthenticatedMessage
     private Map<String, BiConsumer<String, AuthenticatedMessage>> messageHandlers = new ConcurrentHashMap<>();
@@ -53,8 +60,14 @@ public class Leader extends Member {
         // Setup perfect links to all members
         setupMemberLinks();
         
+        // Register message handlers for key exchange protocol
+        registerKeyExchangeHandlers();
+        
         // Initialize EpochConsensus
         this.epochConsensus = new EpochConsensus(this);
+        
+        // Initialize the KeyManager (inherited from Member class)
+        Logger.log(Logger.LEADER_ERRORS, "Initializing KeyManager for leader");
     }
     
     /**
@@ -123,12 +136,115 @@ public class Leader extends Member {
             int leaderPortForMember = memberPort + 1000;
             
             // Create perfect link to member using leader port
-            AuthenticatedPerfectLinks link = new AuthenticatedPerfectLinks(memberIP, memberPort, leaderPortForMember);
+            AuthenticatedPerfectLinks link = new AuthenticatedPerfectLinks(memberIP, memberPort, leaderPortForMember, memberName);
             memberLinks.put(memberName, link);
 
             Logger.log(Logger.LEADER_ERRORS, "Established link with " + memberName + " at " + memberIP + ":" + memberPort +
                                " using leader port " + leaderPortForMember);
         }
+    }
+    
+    /**
+     * Registers message handlers for the key exchange protocol.
+     */
+    private void registerKeyExchangeHandlers() {
+        // Register handler for key exchange acknowledgment
+        registerMessageHandler(CMD_KEY_ACK, (memberName, message) -> {
+            try {
+                handleKeyAcknowledgment(memberName, message);
+            } catch (Exception e) {
+                Logger.log(Logger.LEADER_ERRORS, "Error handling key acknowledgment from " + memberName + ": " + e.getMessage());
+                e.printStackTrace();
+            }
+        });
+    }
+    
+    /**
+     * Initiates the key exchange protocol with a specific member.
+     * 
+     * @param memberName The name of the member
+     * @throws Exception If key exchange fails
+     */
+    public void initiateKeyExchange(String memberName) throws Exception {
+        Logger.log(Logger.LEADER_ERRORS, "Initiating key exchange with " + memberName);
+        
+        try {
+            // Generate a new AES key for this member
+            SecretKey aesKey = AuthenticatedPerfectLinks.generateAesKey();
+            memberKeys.put(memberName, aesKey);
+            
+            // Convert the key to a string for transmission
+            String keyString = AuthenticatedPerfectLinks.aesKeyToString(aesKey);
+            
+            // Get the member's public key using KeyManager
+            KeyManager keyManager = new KeyManager("leader");
+            java.security.PublicKey publicKey = keyManager.getPublicKey(memberName);
+            
+            if (publicKey == null) {
+                throw new Exception("No public key found for " + memberName);
+            }
+            
+            // Encrypt the AES key with the member's public key
+            String encryptedKey = AuthenticatedPerfectLinks.encryptWithRsa(keyString, publicKey);
+            
+            // Send the encrypted key to the member
+            sendToMember(memberName, encryptedKey, CMD_KEY_EXCHANGE);
+            
+            Logger.log(Logger.LEADER_ERRORS, "Sent RSA-encrypted key exchange to " + memberName);
+        } catch (Exception e) {
+            Logger.log(Logger.LEADER_ERRORS, "Error initiating key exchange with " + memberName + ": " + e.getMessage());
+            throw e;
+        }
+    }
+    
+    /**
+     * Handles key acknowledgment from a member.
+     * 
+     * @param memberName The name of the member
+     * @param message The key acknowledgment message
+     * @throws Exception If handling fails
+     */
+    private void handleKeyAcknowledgment(String memberName, AuthenticatedMessage message) throws Exception {
+        Logger.log(Logger.LEADER_ERRORS, "Received key acknowledgment from " + memberName);
+        
+        // Verify that we have a key for this member
+        if (!memberKeys.containsKey(memberName)) {
+            throw new Exception("No key found for " + memberName);
+        }
+        
+        // Get the key for this member
+        SecretKey aesKey = memberKeys.get(memberName);
+        
+        // Set the key for the perfect link
+        AuthenticatedPerfectLinks link = memberLinks.get(memberName);
+        link.changeKey(aesKey);
+        
+        // Send a final confirmation that we're now using the key
+        sendToMember(memberName, "OK", CMD_KEY_OK);
+        
+        Logger.log(Logger.LEADER_ERRORS, "Completed key exchange with " + memberName + ", now using AES encryption");
+        Logger.log(Logger.LEADER_ERRORS, "RSA was used for key exchange, AES will be used for ongoing communication");
+    }
+    
+    /**
+     * Initiates key exchange with all members.
+     * 
+     * @throws Exception If key exchange fails
+     */
+    public void initiateAllKeyExchanges() throws Exception {
+        Logger.log(Logger.LEADER_ERRORS, "Starting key exchange with all members");
+        
+        for (String memberName : memberLinks.keySet()) {
+            try {
+                initiateKeyExchange(memberName);
+                // Short delay to prevent overloading the network
+                Thread.sleep(500);
+            } catch (Exception e) {
+                Logger.log(Logger.LEADER_ERRORS, "Failed to initiate key exchange with " + memberName + ": " + e.getMessage());
+            }
+        }
+        
+        Logger.log(Logger.LEADER_ERRORS, "All key exchanges initiated");
     }
     
     /**
@@ -147,7 +263,7 @@ public class Leader extends Member {
         Message message = new Message(payload, command);
         memberLinks.get(memberName).alp2pSend(memberName, message);
         
-        Logger.log(Logger.LEADER_ERRORS, "Sent message to " + memberName + ": payload=\"" + payload + "\", command=\"" + command + "\"");
+        Logger.log(Logger.LEADER_ERRORS, "Sent message to " + memberName + ": command=\"" + command + "\"");
     }
     
     /**
@@ -162,7 +278,7 @@ public class Leader extends Member {
             sendToMember(memberName, payload, command);
         }
         
-        Logger.log(Logger.LEADER_ERRORS, "Broadcasted message to all members: payload=\"" + payload + "\", command=\"" + command + "\"");
+        Logger.log(Logger.LEADER_ERRORS, "Broadcasted message to all members: command=\"" + command + "\"");
     }
     
     /**
@@ -218,6 +334,9 @@ public class Leader extends Member {
                 Logger.log(Logger.LEADER_ERRORS, "Connection to " + memberName + ": member port " + memberPort + 
                         ", leader port " + leaderPortForMember);
             }
+            
+            // Initiate key exchange with all members
+            initiateAllKeyExchanges();
             
             // Start the command processing thread for client commands
             Thread commandThread = new Thread(this::receiveCommands);
@@ -302,7 +421,7 @@ public class Leader extends Member {
         String command = message.getCommand();
         String payload = message.getPayload();
         
-        Logger.log(Logger.LEADER_ERRORS, "Processing message from " + memberName + ": " + command + " with payload: " + payload);
+        Logger.log(Logger.LEADER_ERRORS, "Processing message from " + memberName + ": " + command);
         
         // Check if we have a registered handler for this command
         if (messageHandlers.containsKey(command)) {
@@ -365,6 +484,12 @@ public class Leader extends Member {
             AuthenticatedPerfectLinks link = memberLinks.get(memberName);
             int receivedCount = link.getReceivedSize();
             Logger.log(Logger.LEADER_ERRORS, "Received messages for " + memberName + ": " + receivedCount);
+            
+            // Also log encryption status
+            SecretKey key = memberKeys.getOrDefault(memberName, null);
+            boolean usingEncryption = (key != null);
+            Logger.log(Logger.LEADER_ERRORS, "Encryption status for " + memberName + ": " + 
+                              (usingEncryption ? "Using AES encryption" : "Not encrypted"));
         }
     }
     
@@ -417,6 +542,18 @@ public class Leader extends Member {
                 processGetBlockchainCommand();
                 break;
                 
+            case "INIT_KEY_EXCHANGE":
+                Logger.log(Logger.LEADER_ERRORS, "Executing key exchange initialization");
+                String targetMember = payload.trim();
+                if (targetMember.equals("ALL")) {
+                    initiateAllKeyExchanges();
+                } else if (memberLinks.containsKey(targetMember)) {
+                    initiateKeyExchange(targetMember);
+                } else {
+                    Logger.log(Logger.LEADER_ERRORS, "Unknown member for key exchange: " + targetMember);
+                }
+                break;
+                
             default:
                 Logger.log(Logger.LEADER_ERRORS, "Unknown command: " + command);
                 break;
@@ -458,8 +595,6 @@ public class Leader extends Member {
         return epochConsensus;
     }
     
-    // These methods are already inherited from Member class and don't need to be redefined
-    
     /**
      * Main method to start a leader instance.
      * 
@@ -474,6 +609,11 @@ public class Leader extends Member {
             // Only run the communication test
             Logger.log(Logger.LEADER_ERRORS, "Running in test mode");
             leader.testCommunication();
+            
+            // Test key exchange
+            Logger.log(Logger.LEADER_ERRORS, "Testing key exchange with member1");
+            leader.initiateKeyExchange("member1");
+            Thread.sleep(2000); // Wait for the key exchange to complete
             
             // Test blockchain append
             Logger.log(Logger.LEADER_ERRORS, "Testing blockchain append");

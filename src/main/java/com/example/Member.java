@@ -2,26 +2,31 @@ package com.example;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.crypto.SecretKey;
 import org.json.JSONObject;
 
 /**
  * Implements a member node in the Byzantine consensus system
  */
 public class Member {
-    private String name;
-    private int port;
-    private int leaderPort;
-    private AuthenticatedPerfectLinks leaderLink;
-    private List<String> blockchain = new ArrayList<>();
-    private int currentEpoch = 0;
-    private Map<Integer, EpochState> epochs = new HashMap<>();
+    protected String name;
+    protected int port;
+    protected int leaderPort;
+    protected AuthenticatedPerfectLinks leaderLink;
+    protected List<String> blockchain = new ArrayList<>();
+    protected int currentEpoch = 0;
+    protected Map<Integer, EpochState> epochs = new HashMap<>();
     
     // Add connections attribute to store symmetric keys
     protected Map<String, String> connections = new HashMap<>();
+    
+    // Add KeyManager for cryptographic operations
+    protected KeyManager keyManager;
     
     // Track the last processed message index
     private int lastProcessedIndex = 0;
@@ -33,6 +38,11 @@ public class Member {
     private static final String CMD_ACK = "EPOCH_ACK";
     private static final String CMD_READ = "EPOCH_READ";
     private static final String CMD_READ_REPLY = "EPOCH_READ_REPLY";
+    
+    // Constants for key exchange protocol
+    private static final String CMD_KEY_EXCHANGE = "KEY_EXCHANGE";
+    private static final String CMD_KEY_ACK = "KEY_ACK";
+    private static final String CMD_KEY_OK = "KEY_OK";
     
     /**
      * Class to track the state of an epoch
@@ -57,15 +67,18 @@ public class Member {
     public Member(String name) throws Exception {
         this.name = name;
         
+        // Initialize the KeyManager
+        keyManager = new KeyManager(name);
+        
         // Load configuration from resources.json
         loadConfig();
         
         // Create a link to the leader
         String leaderIP = "127.0.0.1";
         System.out.println("Initiating link to leader at " + leaderIP + ":" + leaderPort + " from port " + port);
-        leaderLink = new AuthenticatedPerfectLinks(leaderIP, leaderPort, port);
+        leaderLink = new AuthenticatedPerfectLinks(leaderIP, leaderPort, port, "leader");
         
-        // Initialize connections map with a symmetric key for the leader
+        // Initialize connections map with an empty key for the leader
         connections.put("leader", "");
         
         Logger.log(Logger.MEMBER, "Initialized member: " + name + " on port " + port);
@@ -147,14 +160,22 @@ public class Member {
         
         // Only process new messages we haven't seen yet
         for (int i = lastProcessedIndex; i < messages.size(); i++) {
-            Message message = messages.get(i);
+            AuthenticatedMessage authMessage = messages.get(i);
             
-            String command = message.getCommand();
-            String payload = message.getPayload();
+            String command = authMessage.getCommand();
+            String payload = authMessage.getPayload();
             
-            Logger.log(Logger.MEMBER, "Processing message: " + command + " with payload: " + payload);
+            Logger.log(Logger.MEMBER, "Processing message: " + command + " with payload length: " + payload.length());
             
             switch (command) {
+                case CMD_KEY_EXCHANGE:
+                    handleKeyExchange(authMessage);
+                    break;
+                    
+                case CMD_KEY_OK:
+                    Logger.log(Logger.MEMBER, "Key exchange completed successfully");
+                    break;
+                    
                 case CMD_READ:
                     handleReadRequest(payload);
                     break;
@@ -193,6 +214,45 @@ public class Member {
     }
     
     /**
+     * Handles a key exchange message from the leader.
+     * 
+     * @param authMessage The authenticated message
+     * @throws Exception If handling fails
+     */
+    private void handleKeyExchange(AuthenticatedMessage authMessage) throws Exception {
+        try {
+            Logger.log(Logger.MEMBER, "Received KEY_EXCHANGE from leader");
+            
+            // Get our private key
+            PrivateKey privateKey = keyManager.getPrivateKey(name);
+            if (privateKey == null) {
+                throw new Exception("No private key found for " + name);
+            }
+            
+            // Decrypt the AES key using our private key
+            String encryptedKey = authMessage.getPayload();
+            String aesKeyStr = AuthenticatedPerfectLinks.decryptWithRsa(encryptedKey, privateKey);
+            
+            // Store the AES key in the connections map
+            connections.put("leader", aesKeyStr);
+            
+            // Send acknowledgment to the leader
+            sendToLeader("ACK", CMD_KEY_ACK);
+            Logger.log(Logger.MEMBER, "Sent KEY_ACK to leader");
+            
+            // Convert string to AES key and change the key in the perfect link
+            SecretKey aesKey = AuthenticatedPerfectLinks.stringToAesKey(aesKeyStr);
+            leaderLink.changeKey(aesKey);
+            
+            Logger.log(Logger.MEMBER, "Changed to AES encryption for leader communications");
+            
+        } catch (Exception e) {
+            Logger.log(Logger.MEMBER, "Error handling KEY_EXCHANGE: " + e.getMessage());
+            throw e;
+        }
+    }
+    
+    /**
      * Handles a read request from the leader.
      * 
      * @param payload The epoch number
@@ -213,8 +273,8 @@ public class Member {
         sendToLeader(epoch + "|" + lastValue + "|" + writeSet, CMD_READ_REPLY);
         
         Logger.log(Logger.MEMBER, "Sent READ_REPLY for epoch " + epoch + 
-                " with lastValue: " + lastValue + 
-                " and writeSet: " + writeSet);
+                   " with lastValue: " + lastValue + 
+                   " and writeSet: " + writeSet);
     }
     
     /**
@@ -317,7 +377,7 @@ public class Member {
      * @param command The command to execute
      * @throws Exception If sending fails
      */
-    private void sendToLeader(String payload, String command) throws Exception {
+    protected void sendToLeader(String payload, String command) throws Exception {
         Message message = new Message(payload, command);
         leaderLink.alp2pSend("leader", message);
     }
@@ -364,7 +424,6 @@ public class Member {
         
         String memberName = args[0];
         Logger.initFromArgs("--log=1,2,3,4");
-
         
         Member member = new Member(memberName);
         member.blockchain.add("Genesis");
