@@ -62,6 +62,8 @@ public class Leader extends Member {
         
         // Register message handlers for key exchange protocol
         registerKeyExchangeHandlers();
+
+        
         
         // Initialize EpochConsensus
         this.epochConsensus = new EpochConsensus(this);
@@ -437,6 +439,7 @@ public class Leader extends Member {
      * This runs in a separate thread.
      */
     private void receiveCommands() {
+        
         Logger.log(Logger.LEADER_ERRORS, "Starting to receive commands from clientLibrary...");
         
         try {

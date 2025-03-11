@@ -1,10 +1,13 @@
 package com.example;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -12,6 +15,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+
 import org.json.JSONObject;
 
 /**
@@ -21,7 +25,7 @@ public class KeyManager {
     private static final String KEYS_FILE = "shared/keys.json";
     private Map<String, PublicKey> publicKeys = new HashMap<>();
     private Map<String, PrivateKey> privateKeys = new HashMap<>();
-    
+
     /**
      * Constructor for KeyManager.
      * 
@@ -29,9 +33,194 @@ public class KeyManager {
      * @throws Exception If loading keys fails
      */
     public KeyManager(String entityName) throws Exception {
+        createKeyPair(entityName);
+        waitForKeys();
         loadKeys(entityName);
     }
-    
+
+    /**
+     * Creates a new RSA key pair and saves it to the specified paths.
+     * Files will be saved in PEM format.
+     * 
+     * @param entityName The name of the entity to create keys for
+     * @return true if successful, false otherwise
+     */
+    public boolean createKeyPair(String entityName) {
+        String privateKeyPath = "shared/priv_keys/" + entityName + "_private.pem";
+        String publicKeyPath = "shared/pub_keys/" + entityName + "_public.pem";
+
+        try {
+            // Create directories if they don't exist
+            new File("shared/priv_keys").mkdirs();
+            new File("shared/pub_keys").mkdirs();
+
+            // Generate RSA key pair
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+            KeyPair pair = keyGen.generateKeyPair();
+            PrivateKey privateKey = pair.getPrivate();
+            PublicKey publicKey = pair.getPublic();
+
+            // Save keys to files
+            savePrivateKeyToPem(privateKey, privateKeyPath);
+            savePublicKeyToPem(publicKey, publicKeyPath);
+
+            // Update keys.json file
+            updateKeysJsonFile(entityName, publicKeyPath, privateKeyPath);
+
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * Updates the keys.json file to include the new entity's keys.
+     * Creates the file if it doesn't exist.
+     * 
+     * @param entityName The name of the entity
+     * @param publicKeyPath Path to the public key
+     * @param privateKeyPath Path to the private key
+     * @throws IOException If file operations fail
+     */
+    private void updateKeysJsonFile(String entityName, String publicKeyPath, String privateKeyPath) throws IOException {
+        JSONObject keysJson;
+        File keysFile = new File(KEYS_FILE);
+
+        // Create the parent directory if it doesn't exist
+        if (!keysFile.getParentFile().exists()) {
+            keysFile.getParentFile().mkdirs();
+        }
+
+        // Read existing file or create new JSON structure
+        if (keysFile.exists()) {
+            String content = new String(Files.readAllBytes(keysFile.toPath()));
+            keysJson = new JSONObject(content);
+        } else {
+            keysJson = new JSONObject();
+            keysJson.put("keys", new JSONObject());
+        }
+
+        // Add or update entity's keys
+        JSONObject entityJson = new JSONObject();
+
+        // Use relative paths in the JSON file
+        String relativePublicKeyPath = publicKeyPath.replace("shared/", "");
+        String relativePrivateKeyPath = privateKeyPath.replace("shared/", "");
+
+        entityJson.put("public", relativePublicKeyPath);
+        entityJson.put("private", relativePrivateKeyPath);
+
+        keysJson.getJSONObject("keys").put(entityName, entityJson);
+
+        // Write the updated JSON back to the file
+        try (FileOutputStream fos = new FileOutputStream(keysFile)) {
+            fos.write(keysJson.toString(4).getBytes());
+        }
+    }
+
+    /**
+     * Waits until all keys exist in keys.json before proceeding.
+     *
+     * @throws IOException If file operations fail
+     * @throws InterruptedException If thread sleep is interrupted
+     */
+    private void waitForKeys() throws IOException, InterruptedException {
+        File keysFile = new File(KEYS_FILE);
+        if (!keysFile.exists()) {
+            throw new IOException("Keys file not found: " + KEYS_FILE);
+        }
+
+        while (true) {
+            String content = new String(Files.readAllBytes(keysFile.toPath()));
+            JSONObject json = new JSONObject(content);
+
+            if (!json.has("keys")) {
+                throw new IOException("No 'keys' object found in keys.json");
+            }
+
+            JSONObject keysJson = json.getJSONObject("keys");
+            boolean allKeysExist = true;
+
+            for (String entity : keysJson.keySet()) {
+                JSONObject entityKeys = keysJson.getJSONObject(entity);
+
+                if (!entityKeys.has("public") || !entityKeys.has("private")) {
+                    allKeysExist = false;
+                    break;
+                }
+
+                String publicKeyPath = "shared/" + entityKeys.getString("public");
+                String privateKeyPath = "shared/" + entityKeys.getString("private");
+
+                if (!new File(publicKeyPath).exists() || !new File(privateKeyPath).exists()) {
+                    allKeysExist = false;
+                    break;
+                }
+            }
+
+            if (allKeysExist) {
+                break;
+            }
+
+            // Sleep for a while before checking again
+            Thread.sleep(1000);
+        }
+    }
+    /**
+     * Saves a private key to a file in PEM format.
+     * 
+     * @param privateKey The private key to save
+     * @param filePath The file path to save to
+     * @throws IOException If file operations fail
+     */
+    private void savePrivateKeyToPem(PrivateKey privateKey, String filePath) throws IOException {
+        byte[] encoded = privateKey.getEncoded();
+        String base64Encoded = Base64.getEncoder().encodeToString(encoded);
+
+        String pemContent = "-----BEGIN PRIVATE KEY-----\n" + 
+                            formatPemContent(base64Encoded) + 
+                            "\n-----END PRIVATE KEY-----";
+
+        try (FileOutputStream fos = new FileOutputStream(filePath)) {
+            fos.write(pemContent.getBytes());
+        }
+    }
+
+    /**
+     * Saves a public key to a file in PEM format.
+     * 
+     * @param publicKey The public key to save
+     * @param filePath The file path to save to
+     * @throws IOException If file operations fail
+     */
+    private void savePublicKeyToPem(PublicKey publicKey, String filePath) throws IOException {
+        byte[] encoded = publicKey.getEncoded();
+        String base64Encoded = Base64.getEncoder().encodeToString(encoded);
+
+        String pemContent = "-----BEGIN PUBLIC KEY-----\n" + 
+                            formatPemContent(base64Encoded) + 
+                            "\n-----END PUBLIC KEY-----";
+
+        try (FileOutputStream fos = new FileOutputStream(filePath)) {
+            fos.write(pemContent.getBytes());
+        }
+    }
+
+    /**
+     * Formats base64 encoded content into lines of 64 characters for PEM format.
+     * 
+     * @param base64Content The base64 encoded content
+     * @return Formatted content with line breaks
+     */
+    private String formatPemContent(String base64Content) {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < base64Content.length(); i += 64) {
+            result.append(base64Content, i, Math.min(i + 64, base64Content.length())).append("\n");
+        }
+        return result.toString().trim();
+    }
+
     /**
      * Loads cryptographic keys from the paths specified in keys.json file.
      * 
@@ -39,66 +228,42 @@ public class KeyManager {
      * @throws Exception If loading fails
      */
     private void loadKeys(String entityName) throws Exception {
-        try {
-            // Make sure the keys file exists
-            File keysFile = new File(KEYS_FILE);
-            if (!keysFile.exists()) {
-                throw new IOException("Keys file not found: " + KEYS_FILE);
+        String baseDir = "shared";
+        String content = new String(Files.readAllBytes(Paths.get(KEYS_FILE)));
+        JSONObject json = new JSONObject(content);
+
+        if (!json.has("keys")) {
+            throw new IOException("No 'keys' object found in keys.json");
+        }
+
+        JSONObject keysJson = json.getJSONObject("keys");
+
+        // Load keys for all entities
+        for (String entity : keysJson.keySet()) {
+            JSONObject entityKeys = keysJson.getJSONObject(entity);
+
+            if (!entityKeys.has("public") || !entityKeys.has("private")) {
+                throw new Exception("Invalid key format for " + entity + ": missing public or private key paths");
             }
-            
-            // Read the keys.json file
-            String content = new String(Files.readAllBytes(Paths.get(KEYS_FILE)));
-            JSONObject json = new JSONObject(content);
-            
-            if (!json.has("keys")) {
-                throw new Exception("No 'keys' object found in keys.json");
+
+            String publicKeyPath = entityKeys.getString("public");
+            String privateKeyPath = entityKeys.getString("private");
+
+            String fullPublicKeyPath = Paths.get(baseDir, publicKeyPath).toString();
+            String fullPrivateKeyPath = Paths.get(baseDir, privateKeyPath).toString();
+
+            PublicKey publicKey = loadPublicKeyFromFile(fullPublicKeyPath);
+            publicKeys.put(entity, publicKey);
+
+            if (entity.equals(entityName)) {
+                PrivateKey privateKey = loadPrivateKeyFromFile(fullPrivateKeyPath);
+                privateKeys.put(entity, privateKey);
             }
-            
-            JSONObject keysJson = json.getJSONObject("keys");
-            
-            // Get the directory where keys.json is located to use for relative paths
-            String baseDir = new File(KEYS_FILE).getParent();
-            if (baseDir == null) {
-                baseDir = ".";
-            }
-            
-            // Load keys for all entities
-            for (String entity : keysJson.keySet()) {
-                JSONObject entityKeys = keysJson.getJSONObject(entity);
-                
-                if (!entityKeys.has("public") || !entityKeys.has("private")) {
-                    throw new Exception("Invalid key format for " + entity + ": missing public or private key paths");
-                }
-                
-                String publicKeyPath = entityKeys.getString("public");
-                String privateKeyPath = entityKeys.getString("private");
-                
-                // Resolve paths relative to the keys.json location
-                String fullPublicKeyPath = Paths.get(baseDir, publicKeyPath).toString();
-                String fullPrivateKeyPath = Paths.get(baseDir, privateKeyPath).toString();
-                
-                // Always load public keys for all entities
-                PublicKey publicKey = loadPublicKeyFromFile(fullPublicKeyPath);
-                publicKeys.put(entity, publicKey);
-                
-                // Only load our private key
-                if (entity.equals(entityName)) {
-                    PrivateKey privateKey = loadPrivateKeyFromFile(fullPrivateKeyPath);
-                    privateKeys.put(entity, privateKey);
-                }
-            }
-            
-            Logger.log(Logger.LEADER_ERRORS, "Loaded keys for " + entityName + 
-                    " and public keys for " + publicKeys.size() + " entities");
-            
-        } catch (Exception e) {
-            Logger.log(Logger.LEADER_ERRORS, "Error loading keys: " + e.getMessage());
-            throw e;
         }
     }
-    
+
     /**
-     * Loads a public key from a file.
+     * Loads a public key from a file. Supports both PEM and binary formats.
      * 
      * @param keyFilePath The path to the public key file
      * @return The public key
@@ -109,42 +274,26 @@ public class KeyManager {
         if (!keyFile.exists()) {
             throw new IOException("Public key file not found: " + keyFilePath);
         }
-        
-        String keyContent = new String(Files.readAllBytes(keyFile.toPath())).trim();
-        String base64Content;
-        
-        // Handle PEM format
+
+        byte[] keyData = Files.readAllBytes(keyFile.toPath());
+        String keyContent = new String(keyData).trim();
+        byte[] keyBytes;
+
+        // Check if the file is in PEM format
         if (keyContent.contains("-----BEGIN PUBLIC KEY-----")) {
-            base64Content = extractBase64Content(keyContent, 
-                    "-----BEGIN PUBLIC KEY-----", 
-                    "-----END PUBLIC KEY-----");
-        } else if (keyContent.contains("-----BEGIN RSA PUBLIC KEY-----")) {
-            base64Content = extractBase64Content(keyContent,
-                    "-----BEGIN RSA PUBLIC KEY-----",
-                    "-----END RSA PUBLIC KEY-----");
-            Logger.log(Logger.LEADER_ERRORS, "Warning: RSA PUBLIC KEY format detected. " +
-                    "This is an older format and might cause issues.");
+            String base64Content = extractBase64Content(keyContent, "-----BEGIN PUBLIC KEY-----", "-----END PUBLIC KEY-----");
+            keyBytes = Base64.getDecoder().decode(base64Content);
         } else {
-            // Assume it's just base64 encoded
-            base64Content = keyContent;
+            keyBytes = keyData;
         }
-        
-        try {
-            byte[] decodedKey = Base64.getDecoder().decode(base64Content);
-            X509EncodedKeySpec spec = new X509EncodedKeySpec(decodedKey);
-            KeyFactory kf = KeyFactory.getInstance("RSA");
-            return kf.generatePublic(spec);
-        } catch (IllegalArgumentException e) {
-            // Log the error for debugging
-            Logger.log(Logger.LEADER_ERRORS, "Error decoding public key from " + keyFilePath + 
-                    ": " + e.getMessage() + ". First 20 chars of processed content: " + 
-                    (base64Content.length() > 20 ? base64Content.substring(0, 20) + "..." : base64Content));
-            throw e;
-        }
+
+        X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        return keyFactory.generatePublic(spec);
     }
-    
+
     /**
-     * Loads a private key from a file.
+     * Loads a private key from a file. Supports both PEM and binary formats.
      * 
      * @param keyFilePath The path to the private key file
      * @return The private key
@@ -155,45 +304,24 @@ public class KeyManager {
         if (!keyFile.exists()) {
             throw new IOException("Private key file not found: " + keyFilePath);
         }
-        
-        String keyContent = new String(Files.readAllBytes(keyFile.toPath())).trim();
-        String base64Content;
-        
-        // Handle different PEM formats
+
+        byte[] keyData = Files.readAllBytes(keyFile.toPath());
+        String keyContent = new String(keyData).trim();
+        byte[] keyBytes;
+
+        // Check if the file is in PEM format
         if (keyContent.contains("-----BEGIN PRIVATE KEY-----")) {
-            // PKCS#8 format
-            base64Content = extractBase64Content(keyContent, 
-                    "-----BEGIN PRIVATE KEY-----", 
-                    "-----END PRIVATE KEY-----");
-        } else if (keyContent.contains("-----BEGIN RSA PRIVATE KEY-----")) {
-            // PKCS#1 format (older RSA-specific format)
-            base64Content = extractBase64Content(keyContent,
-                    "-----BEGIN RSA PRIVATE KEY-----",
-                    "-----END RSA PRIVATE KEY-----");
-            
-            // Note: PKCS#1 keys would need to be converted to PKCS#8 for Java
-            // For simplicity, we'll assume keys are in the right format for now
-            Logger.log(Logger.LEADER_ERRORS, "Warning: RSA PRIVATE KEY format detected. " +
-                    "Converting to PKCS#8 format might be required.");
+            String base64Content = extractBase64Content(keyContent, "-----BEGIN PRIVATE KEY-----", "-----END PRIVATE KEY-----");
+            keyBytes = Base64.getDecoder().decode(base64Content);
         } else {
-            // Assume it's just base64 encoded
-            base64Content = keyContent;
+            keyBytes = keyData;
         }
-        
-        try {
-            byte[] decodedKey = Base64.getDecoder().decode(base64Content);
-            PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(decodedKey);
-            KeyFactory kf = KeyFactory.getInstance("RSA");
-            return kf.generatePrivate(spec);
-        } catch (IllegalArgumentException e) {
-            // Log the error for debugging
-            Logger.log(Logger.LEADER_ERRORS, "Error decoding private key from " + keyFilePath + 
-                    ": " + e.getMessage() + ". First 20 chars of processed content: " + 
-                    (base64Content.length() > 20 ? base64Content.substring(0, 20) + "..." : base64Content));
-            throw e;
-        }
+
+        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        return keyFactory.generatePrivate(spec);
     }
-    
+
     /**
      * Helper method to extract Base64 content from PEM formatted keys.
      * 
@@ -205,16 +333,15 @@ public class KeyManager {
     private String extractBase64Content(String pemContent, String beginMarker, String endMarker) {
         int beginIndex = pemContent.indexOf(beginMarker) + beginMarker.length();
         int endIndex = pemContent.indexOf(endMarker);
-        
+
         if (beginIndex == -1 || endIndex == -1 || beginIndex >= endIndex) {
-            // If markers aren't found or are in wrong order, return original content
-            return pemContent;
+            throw new IllegalArgumentException("Invalid PEM format");
         }
-        
+
         // Extract content between markers and remove all whitespace
         return pemContent.substring(beginIndex, endIndex).replaceAll("\\s", "");
     }
-    
+
     /**
      * Gets the public key for an entity.
      * 
@@ -224,7 +351,7 @@ public class KeyManager {
     public PublicKey getPublicKey(String entityName) {
         return publicKeys.get(entityName);
     }
-    
+
     /**
      * Gets the private key for the current entity.
      * 

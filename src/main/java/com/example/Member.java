@@ -66,7 +66,6 @@ public class Member {
      */
     public Member(String name) throws Exception {
         this.name = name;
-        
         // Initialize the KeyManager
         keyManager = new KeyManager(name);
         
@@ -102,12 +101,19 @@ public class Member {
         this.leaderPort = this.port + 1000;
     }
     
+
+    
+
+
+
     /**
      * Starts the member service and begins listening for messages.
      */
     public void start() {
         System.out.println("Starting member service on port " + port);
         Logger.log(Logger.MEMBER, "Starting member service on port " + port);
+        System.out.println("Generating RSA key pair for member: " + name);
+        
         
         try {
             // Start a separate thread to print blockchain status every 3 seconds
