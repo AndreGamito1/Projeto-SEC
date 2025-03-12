@@ -5,5 +5,5 @@ keys/server_private.key
 keys/server_public.key
 *.class
 output/
-*.json
 shared/resources.json
+*.pem
