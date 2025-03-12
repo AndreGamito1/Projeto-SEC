@@ -47,7 +47,14 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
             e.printStackTrace();
         }
     }
-    
+    /**
+     * Clears all received messages from the buffer.
+     */
+    public void clearReceivedMessages() {
+        synchronized (received) {
+            received.clear();
+        }
+    }
     /**
      * Constructor without destEntity for backward compatibility.
      */

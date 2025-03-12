@@ -1,0 +1,26 @@
+{"keys": {
+    "leader": {
+        "private": "priv_keys/leader_private.pem",
+        "public": "pub_keys/leader_public.pem"
+    },
+    "member4": {
+        "private": "priv_keys/member4_private.pem",
+        "public": "pub_keys/member4_public.pem"
+    },
+    "clientLibrary": {
+        "private": "priv_keys/clientLibrary_private.pem",
+        "public": "pub_keys/clientLibrary_public.pem"
+    },
+    "member2": {
+        "private": "priv_keys/member2_private.pem",
+        "public": "pub_keys/member2_public.pem"
+    },
+    "member3": {
+        "private": "priv_keys/member3_private.pem",
+        "public": "pub_keys/member3_public.pem"
+    },
+    "member1": {
+        "private": "priv_keys/member1_private.pem",
+        "public": "pub_keys/member1_public.pem"
+    }
+}}
