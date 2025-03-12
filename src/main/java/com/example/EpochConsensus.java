@@ -17,7 +17,7 @@ public class EpochConsensus {
     private List<String> blockchain = new ArrayList<>();
     private Map<Integer, EpochState> epochs = new ConcurrentHashMap<>();
     private AtomicInteger currentEpoch = new AtomicInteger(0);
-    private static final int QUORUM_SIZE = 4; // Majority of 4 members + leader
+    private static final int QUORUM_SIZE = 2; // Majority of 4 members + leader
     
     // Constants for commands used in messages
     private static final String CMD_PROPOSE = "EPOCH_PROPOSE";
