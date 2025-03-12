@@ -10,6 +10,18 @@ $actualHttpPort = $HttpPort + 1
 Write-Host "Starting Byzantine Blockchain System..." -ForegroundColor Green
 Write-Host "REST API will be available at: http://localhost:$actualHttpPort/blockchain/"
 
+# Clean key folders before initialization
+Write-Host "Cleaning key folders..." -ForegroundColor Cyan
+if (Test-Path "shared/priv_keys") {
+    Remove-Item -Path "shared/priv_keys/*" -Force -Recurse -ErrorAction SilentlyContinue
+}
+if (Test-Path "shared/pub_keys") {
+    Remove-Item -Path "shared/pub_keys/*" -Force -Recurse -ErrorAction SilentlyContinue
+}
+# Ensure directories exist
+New-Item -ItemType Directory -Path "shared/priv_keys" -Force | Out-Null
+New-Item -ItemType Directory -Path "shared/pub_keys" -Force | Out-Null
+
 # 1. Start Leader
 Write-Host "Starting Leader process..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Starting Leader...' -ForegroundColor Yellow; mvn exec:java '-Dexec.mainClass=com.example.Leader'"
@@ -37,7 +49,7 @@ Start-Sleep -Seconds 3
 # 4. Start Clients (if not disabled)
 if (-not $RestApiOnly) {
     Write-Host "Starting $NumClients blockchain client(s)..." -ForegroundColor Cyan
-    
+   
     for ($i = 1; $i -le $NumClients; $i++) {
         $clientId = "Client$i"
         Write-Host "  - Launching client: $clientId" -ForegroundColor Cyan
@@ -54,7 +66,7 @@ function Start-BlockchainClient {
     param (
         [string]$ClientId = "Client$(Get-Random -Minimum 100 -Maximum 999)"
     )
-    
+   
     Write-Host "Launching client: $ClientId" -ForegroundColor Cyan
     Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Starting Blockchain Client: $ClientId' -ForegroundColor Yellow; mvn exec:java '-Dexec.mainClass=com.example.Client' '-Dexec.args=$ClientId'"
 }
