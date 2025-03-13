@@ -57,6 +57,15 @@ public class EpochConsensus {
             this.epoch = epoch;
         }
     }
+
+    /**
+     * Gets the current epoch number.
+     * 
+     * @return The current epoch
+     */
+    public int getCurrentEpoch() {
+        return currentEpoch.get();
+    }
     
     /**
      * Initiates the consensus process to append a new value to the blockchain.
@@ -128,6 +137,87 @@ public class EpochConsensus {
         }
     }
     
+/**
+ * Gets the current blockchain by performing a Byzantine read phase.
+ * This collects blockchain information from all members.
+ * 
+ * @return List of strings in the blockchain
+ * @throws Exception If communication fails
+ */
+public List<String> getBlockchain() throws Exception {
+    // Create a temporary epoch state for the read operation
+    int readEpoch = -1; // Using -1 to distinguish from regular consensus epochs
+    EpochState readState = new EpochState(readEpoch);
+    epochs.put(readEpoch, readState);
+    
+    // Perform a read phase
+    performReadPhase(readEpoch);
+    
+    // Wait for read replies (max 5 seconds)
+    long startTime = System.currentTimeMillis();
+    while (readState.readReplies < QUORUM_SIZE && System.currentTimeMillis() - startTime < 5000) {
+        Thread.sleep(100);
+        System.out.println("Waiting for blockchain read replies: " + readState.readReplies + "/" + QUORUM_SIZE);
+    }
+    
+    // If we didn't get enough replies, return error message
+    if (readState.readReplies < QUORUM_SIZE) {
+        throw new Exception("Failed to get quorum for blockchain read operation");
+    }
+    
+    
+    // Process all the writeSets received from members
+    List<String> reconstructedBlockchain = new ArrayList<>();
+    boolean genesisFound = false;
+    
+    // Add "Genesis" if any member has it
+    for (Map.Entry<String, List<String>> entry : readState.memberWriteSets.entrySet()) {
+        List<String> writeSet = entry.getValue();
+        if (!writeSet.isEmpty() && writeSet.get(0).equals("Genesis")) {
+            reconstructedBlockchain.add("Genesis");
+            genesisFound = true;
+            break;
+        }
+    }
+    
+    // Merge blocks from all members (excluding Genesis which we've already handled)
+    // This is a simplified approach - in a real Byzantine environment, you'd 
+    // need to do more sophisticated verification and conflict resolution
+    for (Map.Entry<String, List<String>> entry : readState.memberWriteSets.entrySet()) {
+        List<String> writeSet = entry.getValue();
+        for (int i = genesisFound ? 1 : 0; i < writeSet.size(); i++) {
+            String block = writeSet.get(i);
+            if (!reconstructedBlockchain.contains(block)) {
+                // Verify this block with other members before adding
+                int confirmations = 0;
+                for (List<String> otherWriteSet : readState.memberWriteSets.values()) {
+                    if (otherWriteSet.contains(block)) {
+                        confirmations++;
+                    }
+                }
+                
+                // If a quorum of members has this block, add it
+                if (confirmations >= QUORUM_SIZE) {
+                    reconstructedBlockchain.add(block);
+                }
+            }
+        }
+    }
+    
+    // Clean up the temporary epoch state
+    epochs.remove(readEpoch);
+    
+    // If we got no valid blockchain from members, fall back to local data
+    if (reconstructedBlockchain.isEmpty()) {
+        return new ArrayList<>(blockchain);
+    }
+    
+    // Update our local blockchain with the reconstructed one
+    blockchain = new ArrayList<>(reconstructedBlockchain);
+    
+    return reconstructedBlockchain;
+}
+
     /**
      * Performs the read phase of the consensus algorithm.
      * 
@@ -228,93 +318,5 @@ public class EpochConsensus {
         }
     }
         
-/**
- * Gets the current blockchain by performing a Byzantine read phase.
- * This collects blockchain information from all members.
- * 
- * @return List of strings in the blockchain
- * @throws Exception If communication fails
- */
-public List<String> getBlockchain() throws Exception {
-    // Create a temporary epoch state for the read operation
-    int readEpoch = -1; // Using -1 to distinguish from regular consensus epochs
-    EpochState readState = new EpochState(readEpoch);
-    epochs.put(readEpoch, readState);
-    
-    // Perform a read phase
-    performReadPhase(readEpoch);
-    
-    // Wait for read replies (max 5 seconds)
-    long startTime = System.currentTimeMillis();
-    while (readState.readReplies < QUORUM_SIZE && System.currentTimeMillis() - startTime < 5000) {
-        Thread.sleep(100);
-        System.out.println("Waiting for blockchain read replies: " + readState.readReplies + "/" + QUORUM_SIZE);
-    }
-    
-    // If we didn't get enough replies, return local blockchain
-    if (readState.readReplies < QUORUM_SIZE) {
-        Logger.log(Logger.LEADER_ERRORS, "Insufficient read replies for blockchain query, using local data");
-        return new ArrayList<>(blockchain);
-    }
-    
-    // Process all the writeSets received from members
-    List<String> reconstructedBlockchain = new ArrayList<>();
-    boolean genesisFound = false;
-    
-    // Add "Genesis" if any member has it
-    for (Map.Entry<String, List<String>> entry : readState.memberWriteSets.entrySet()) {
-        List<String> writeSet = entry.getValue();
-        if (!writeSet.isEmpty() && writeSet.get(0).equals("Genesis")) {
-            reconstructedBlockchain.add("Genesis");
-            genesisFound = true;
-            break;
-        }
-    }
-    
-    // Merge blocks from all members (excluding Genesis which we've already handled)
-    // This is a simplified approach - in a real Byzantine environment, you'd 
-    // need to do more sophisticated verification and conflict resolution
-    for (Map.Entry<String, List<String>> entry : readState.memberWriteSets.entrySet()) {
-        List<String> writeSet = entry.getValue();
-        for (int i = genesisFound ? 1 : 0; i < writeSet.size(); i++) {
-            String block = writeSet.get(i);
-            if (!reconstructedBlockchain.contains(block)) {
-                // Verify this block with other members before adding
-                int confirmations = 0;
-                for (List<String> otherWriteSet : readState.memberWriteSets.values()) {
-                    if (otherWriteSet.contains(block)) {
-                        confirmations++;
-                    }
-                }
-                
-                // If a quorum of members has this block, add it
-                if (confirmations >= QUORUM_SIZE) {
-                    reconstructedBlockchain.add(block);
-                }
-            }
-        }
-    }
-    
-    // Clean up the temporary epoch state
-    epochs.remove(readEpoch);
-    
-    // If we got no valid blockchain from members, fall back to local data
-    if (reconstructedBlockchain.isEmpty()) {
-        return new ArrayList<>(blockchain);
-    }
-    
-    // Update our local blockchain with the reconstructed one
-    blockchain = new ArrayList<>(reconstructedBlockchain);
-    
-    return reconstructedBlockchain;
-}
 
-    /**
-     * Gets the current epoch number.
-     * 
-     * @return The current epoch
-     */
-    public int getCurrentEpoch() {
-        return currentEpoch.get();
-    }
 }

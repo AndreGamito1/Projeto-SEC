@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import javax.crypto.SecretKey;
 import org.json.JSONObject;
-
+import com.example.EpochState;
 /**
  * Implements a member node in the Byzantine consensus system
  */
@@ -18,9 +18,8 @@ public class Member {
     protected int port;
     protected int leaderPort;
     protected AuthenticatedPerfectLinks leaderLink;
-    protected List<String> blockchain = new ArrayList<>();
-    protected int currentEpoch = 0;
-    protected Map<Integer, EpochState> epochs = new HashMap<>();
+    protected EpochState currentEpoch;
+    protected List<EpochState> writeSet;
     
     // Add connections attribute to store symmetric keys
     protected Map<String, String> connections = new HashMap<>();
@@ -43,20 +42,6 @@ public class Member {
     private static final String CMD_KEY_EXCHANGE = "KEY_EXCHANGE";
     private static final String CMD_KEY_ACK = "KEY_ACK";
     private static final String CMD_KEY_OK = "KEY_OK";
-    
-    /**
-     * Class to track the state of an epoch
-     */
-    private class EpochState {
-        int epoch;
-        String proposedValue;
-        boolean decided = false;
-        boolean aborted = false;
-        
-        EpochState(int epoch) {
-            this.epoch = epoch;
-        }
-    }
     
     /**
      * Constructor for Member.
@@ -102,7 +87,22 @@ public class Member {
     }
     
 
-    
+    public String printWriteSet() {
+        if (writeSet == null || writeSet.isEmpty()) {
+            return "[]";
+        }
+        
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < writeSet.size(); i++) {
+            sb.append(writeSet.get(i).toString());
+            
+            if (i < writeSet.size() - 1) {
+                sb.append(" -> ");
+            }
+        }
+        
+        return sb.toString();
+    }
 
 
 
@@ -143,9 +143,9 @@ public class Member {
             while (true) {
                 // Print the current blockchain status
                 System.out.println("\n========== " + name + " BLOCKCHAIN STATUS ==========");
-                System.out.println("Current epoch: " + currentEpoch);
-                System.out.println("Blockchain length: " + blockchain.size());
-                System.out.println("Blockchain content: " + String.join(" -> ", blockchain));
+                System.out.println("Current epoch: " + currentEpoch.toString());
+                System.out.println("Blockchain length: " + writeSet.size());
+                System.out.println("Blockchain content: " + printWriteSet());
                 System.out.println("=================================================\n");
                 
                 // Wait for 3 seconds
@@ -171,7 +171,7 @@ public class Member {
             String command = authMessage.getCommand();
             String payload = authMessage.getPayload();
             
-            Logger.log(Logger.MEMBER, "Processing message: " + command + " with payload length: " + payload.length());
+            Logger.log(Logger.MEMBER, "Processing message: " + command + " with payload: " + payload);
             
             switch (command) {
                 case CMD_KEY_EXCHANGE:
@@ -267,20 +267,16 @@ public class Member {
     private void handleReadRequest(String payload) throws Exception {
         int epoch = Integer.parseInt(payload);
         System.out.println("Received READ request for epoch " + epoch);
-        System.out.println("Current blockchain: " + String.join(", ", blockchain));
+        System.out.println("Current blockchain: " + printWriteSet());
 
-        // Get the most recent value (valts, val)
-        String lastValue = blockchain.isEmpty() ? "" : blockchain.get(blockchain.size() - 1);
-        
-        // Create the writeSet (all values in the blockchain)
-        String writeSet = String.join("|", blockchain);
+    
         
         // Send reply with format: "epoch|lastValue|writeSet"
-        sendToLeader(epoch + "|" + lastValue + "|" + writeSet, CMD_READ_REPLY);
+        sendToLeader(epoch + "|" + currentEpoch.toString() + "|" + printWriteSet(), CMD_READ_REPLY);
         
         Logger.log(Logger.MEMBER, "Sent READ_REPLY for epoch " + epoch + 
-                   " with lastValue: " + lastValue + 
-                   " and writeSet: " + writeSet);
+                   " with lastValue: " + currentEpoch.toString() + 
+                   " and writeSet: " + printWriteSet());
     }
     
     /**
@@ -432,7 +428,11 @@ public class Member {
         Logger.initFromArgs("--log=1,2,3,4");
         
         Member member = new Member(memberName);
-        member.blockchain.add("Genesis");
+        EpochState genesis = new EpochState(0);
+        genesis.setProposedValue("Genesis");
+        member.currentEpoch = genesis;
+        member.writeSet.add(genesis);
+        
         System.out.println("Starting member: " + memberName);
         member.start();
     }
