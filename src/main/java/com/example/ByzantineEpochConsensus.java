@@ -69,8 +69,7 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
             leader,
             n,
             f,
-            authenticatedLinks,
-            this::onMessagesCollected  // Callback for collected messages
+            authenticatedLinks
         );
         
         // Initialize arrays

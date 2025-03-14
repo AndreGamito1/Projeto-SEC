@@ -447,7 +447,7 @@ public class Leader extends Member {
      */
     public static void main(String[] args) throws Exception {
         Leader leader = new Leader(BASE_PORT);
-        Logger.initFromArgs("--log=2,3,4,1"); 
+        Logger.initFromArgs("--log=none"); 
         leader.start();
     }
 }

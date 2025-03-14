@@ -3,12 +3,14 @@ package com.example;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.PrivateKey;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.crypto.SecretKey;
 
+import org.ietf.jgss.MessageProp;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import com.example.EpochState;
@@ -26,6 +28,7 @@ public class Member {
     private static final String RESOURCES_FILE = "shared/resources.json";
     private static final String[] MEMBERS = {"member1", "member2", "member3", "member4"};
     private final ConditionalCollect conditionalCollect;
+    protected List<String> blockchain;
     
     // Add connections attribute to store symmetric keys
     protected Map<String, String> connections = new HashMap<>();
@@ -51,7 +54,8 @@ public class Member {
     private static final String CMD_COLLECTED = "CMD_COLLECTED";
     private static final String CMD_STATE = "CMD_STATE";
     private static final String CMD_READ = "CMD_READ";
-    
+    private static final String CMD_WRITE = "CMD_WRITE";
+    private static final String CMD_ACCEPT = "CMD_ACCEPT";
     /**
      * Constructor for Member.
      * 
@@ -73,11 +77,11 @@ public class Member {
             "leader",
             4,
             1,
-            memberLinksArray,
-            this::onMessagesCollected  // Callback for collected messages
+            memberLinksArray
         );
         
         // Initialize connections map with an empty key for the leader
+        this.blockchain = new ArrayList<>();
         connections.put("leader", "");
         
         Logger.log(Logger.MEMBER, "Initialized member: " + name + " on port " + port);
@@ -193,6 +197,7 @@ public class Member {
             while (true) {
                 // Print the current blockchain status
                 System.out.println("\n========== " + name + " BLOCKCHAIN STATUS ==========");
+                System.out.println(blockchain);
                 System.out.println("=================================================\n");
                 
                 // Wait for 3 seconds
@@ -209,17 +214,22 @@ public class Member {
      * @throws Exception If processing fails
      */
     private void processMessages() throws Exception {
-        List<AuthenticatedMessage> messages = leaderLink.getReceivedMessages();
-        
-        // Only process new messages we haven't seen yet
-        for (int i = lastProcessedIndex; i < messages.size(); i++) {
-            AuthenticatedMessage authMessage = messages.get(i);
+        List<AuthenticatedMessage> messages = new ArrayList<>();
+    
+        messages.addAll(leaderLink.getReceivedMessages());
+        for (AuthenticatedPerfectLinks link : memberLinks.values()) {
+            messages.addAll(link.getReceivedMessages());
+        }
+    
+        // Process only the new messages
+        int messageCount = messages.size();
+        while (lastProcessedIndex < messageCount) {
+            AuthenticatedMessage authMessage = messages.get(lastProcessedIndex);
             
             String command = authMessage.getCommand();
             String payload = authMessage.getPayload();
             
-            Logger.log(Logger.MEMBER, "Processing message: " + command + " with payload: " + payload);
-            
+            System.out.println("Processing message: " + command + " with payload: " + payload);
             switch (command) {
                 case CMD_KEY_EXCHANGE:
                     handleKeyExchange(authMessage);
@@ -232,29 +242,32 @@ public class Member {
                 case CMD_READ:
                     handleReadRequest(payload);
                     break;
+                case CMD_WRITE:
+                    handleWriteRequest(authMessage);
+                    break;
+
+                case CMD_ACCEPT:
+                    System.out.println("Received ACCEPT message");
+                    break;
                     
                 case CMD_PROPOSE:
-
                     break;
                     
                 case CMD_ABORT:
-
                     break;
                     
                 case CMD_DECIDE:
-
                     break;
-
+    
                 case CMD_COLLECTED:
                     System.out.println("Received COLLECTED message from leader");
                     System.out.println(payload);
                     conditionalCollect.processCollected(authMessage);
+                    System.out.println("Processed COLLECTED message from leader");
                     break;
-
+    
                 case "TEST_MESSAGE":
-                    // Just log the test message
                     Logger.log(Logger.MEMBER, "Received test message: " + payload);
-                    // Send a reply
                     sendToLeader("Received: " + payload, "TEST_REPLY");
                     break;
                     
@@ -267,10 +280,10 @@ public class Member {
                     break;
             }
             
-            // Update our last processed index after processing the message
-            lastProcessedIndex = i + 1;
+            lastProcessedIndex++;
         }
     }
+    
     
     /**
      * Handles a key exchange message from the leader.
@@ -320,17 +333,28 @@ public class Member {
     private void handleReadRequest(String payload) throws Exception {
         System.out.println("Received READ request");
         System.out.println("Current blockchain: " + printWriteSet());
-        long epoch = currentEpoch.getTimestamp();
     
         
         // Send reply with format: "epoch|lastValue|writeSet"
-        sendToLeader(epoch + "|" + currentEpoch.toString() + "|" + printWriteSet(), CMD_STATE);
-        
-        Logger.log(Logger.MEMBER, "Sent STATE for epoch " + epoch + 
-                   " with lastValue: " + currentEpoch.toString() + 
-                   " and writeSet: " + printWriteSet());
+        System.out.println("Sending STATE TO LEADER:");
+        System.out.println(this.name + "|" + null);
+        sendToLeader(this.name + "|" + null, CMD_STATE);
+
     }
-    
+
+    private void handleWriteRequest(AuthenticatedMessage message) throws Exception {
+        System.out.println("Received WRITE request");
+
+        if (conditionalCollect.receiveWrite(message)) {
+            System.out.println("Received enough writes to proceed to consensus");
+
+            System.out.println("Current blockchain: " + blockchain);
+            blockchain.add(message.getPayload());
+            System.out.println("Updated blockchain: " + blockchain);
+            return;
+        };
+        return;
+    }
     /**
      * Sends a message to the leader.
      * 
@@ -377,26 +401,8 @@ public class Member {
      *
      * @param messages The collected messages
      */
-    private void onMessagesCollected(Message[] messages) {
-        // Handle collected messages
-        Logger.log(Logger.EPOCH_CONSENSUS, "Messages collected in ByzantineEpochConsensus");
-        
-        if (messages == null || messages.length == 0) {
-            Logger.log(Logger.EPOCH_CONSENSUS, "No messages to forward");
-            return;
-        }
-        
-        // Get the consensus message (first message in array)
-        Message consensusMessage = messages[0];
-        
-        // Forward this message to all processes using the memberLinks map
-        for (Map.Entry<String, AuthenticatedPerfectLinks> entry : memberLinks.entrySet()) {
-            String memberId = entry.getKey();
-            AuthenticatedPerfectLinks link = entry.getValue();
-            
-            link.alp2pSend(memberId, consensusMessage);
-            System.out.println("Forwarded collected message to: " + memberId);
-        }
+    private void onMessagesCollected(Message message) {
+        blockchain.add(message.getPayload());
     }
 
     /**
@@ -412,7 +418,7 @@ public class Member {
         }
         
         String memberName = args[0];
-        Logger.initFromArgs("--log=1,2,3,4");
+        Logger.initFromArgs("--log=none");
         
         Member member = new Member(memberName);
         System.out.println("Starting member: " + memberName);

@@ -97,6 +97,7 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
             }
         } else {
             // Use default authentication
+            System.out.println("Sending message to " + dest + ": " + message.getPayload());
             String authString = authenticate(message);
             AuthenticatedMessage authMessage = new AuthenticatedMessage(message, authString);
             stubbornLink.sp2pSend(authMessage);
