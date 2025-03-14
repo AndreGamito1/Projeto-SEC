@@ -10,6 +10,8 @@ public class Logger {
    public static final int LEADER_ERRORS = 2;   // Layer 2
    public static final int CLIENT_LIBRARY = 3;   // Layer 3
    public static final int MEMBER = 4;   // Layer 4
+   public static final int CONDITIONAL_COLLECT = 5;   // Layer 5
+   public static final int EPOCH_CONSENSUS = 6;   // Layer 6
    
    private static boolean[] enabledLevels = new boolean[]{true, true, true};
    
@@ -93,6 +95,12 @@ public class Logger {
                 case MEMBER:
                    prefix = "[Member] ";
                    break;
+                case CONDITIONAL_COLLECT:
+                     prefix = "[ConditionalCollector] ";
+                     break;
+                case EPOCH_CONSENSUS:
+                        prefix = "[EpochConsensus] ";
+                        break;
            }
            System.out.println(prefix + message);
        }

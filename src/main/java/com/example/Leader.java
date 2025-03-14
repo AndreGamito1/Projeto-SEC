@@ -11,13 +11,16 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import javax.crypto.SecretKey;
+
+import org.json.JSONArray;
 import org.json.JSONObject;
+
 
 public class Leader extends Member {
     private String name = "leader";
     private int port;
     private static final String RESOURCES_FILE = "shared/resources.json";
-    private static final String[] MEMBERS = {"member1", "member2", "member3", "member4", "clientLibrary"};
+    private static final String[] MEMBERS = {"member1", "member2", "member3", "member4"};
     private static final int BASE_PORT = 5000; // Leader will be at 5000, members at 5001-5004, clientLibrary at 5005
     
     private Map<String, AuthenticatedPerfectLinks> memberLinks = new HashMap<>();
@@ -33,7 +36,7 @@ public class Leader extends Member {
     private Map<String, BiConsumer<String, AuthenticatedMessage>> messageHandlers = new ConcurrentHashMap<>();
     
     // Add EpochConsensus instance
-    private EpochConsensus epochConsensus;
+    private ByzantineEpochConsensus epochConsensus;
     
     /**
      * Constructor for Leader.
@@ -44,8 +47,7 @@ public class Leader extends Member {
     public Leader(int port) throws Exception {
         // Call the Member constructor with "leader" as the name
         super("leader");
-        
-        this.port = port;     
+        this.port = port;    
         // Initialize member ports
         for (int i = 0; i < MEMBERS.length; i++) {
             memberPorts.put(MEMBERS[i], BASE_PORT + i + 1);
@@ -53,99 +55,76 @@ public class Leader extends Member {
             // Initialize connections map entry for this member with an empty key (to be filled later)
             connections.put(MEMBERS[i], "");
         }
-        
-        // Generate config file with ports
-        generateConfig();
-        
-        // Setup perfect links to all members
         setupMemberLinks();
-        
+
         // Register message handlers for key exchange protocol
         registerKeyExchangeHandlers();
-
-        
         
         // Initialize EpochConsensus
-        this.epochConsensus = new EpochConsensus(this);
+        // Only proceed if memberLinks has entries
+        if (memberLinks.isEmpty()) {
+            Logger.log(Logger.LEADER_ERRORS, "Warning: memberLinks is empty when initializing EpochConsensus");
+        }
+        AuthenticatedPerfectLinks[] memberLinksArray = memberLinks.values().toArray(new AuthenticatedPerfectLinks[0]);
+        this.epochConsensus = new ByzantineEpochConsensus(this.name, this.name, 4, 1, 0, memberLinksArray);
         
         // Initialize the KeyManager (inherited from Member class)
         Logger.log(Logger.LEADER_ERRORS, "Initializing KeyManager for leader");
     }
     
-    /**
-     * Generates a configuration file with ports.
-     * 
-     * @throws Exception If generation fails
-     */
-    private void generateConfig() throws Exception {
-        // Ensure the directory exists
-        File directory = new File("shared");
-        if (!directory.exists()) {
-            directory.mkdirs();
-        }
-        
-        // Create a new JSON object for resources
-        JSONObject json = new JSONObject();
-        
-        // Add leader info
-        JSONObject leaderJson = new JSONObject();
-        leaderJson.put("memberPort", String.valueOf(port));
-        json.put(name, leaderJson);
-        
-        Logger.log(Logger.LEADER_ERRORS, "Generated leader config");
-        
-        // Add member info
-        for (int i = 0; i < MEMBERS.length; i++) {
-            String memberName = MEMBERS[i];
-            int memberPort = memberPorts.get(memberName);
-            
-            JSONObject memberJson = new JSONObject();
-            memberJson.put("memberPort", String.valueOf(memberPort));
-            json.put(memberName, memberJson);
-            
-            Logger.log(Logger.LEADER_ERRORS, "Generated config for " + memberName);
-        }
-        
-        // Write the JSON to the resources file
-        try (FileWriter file = new FileWriter(RESOURCES_FILE)) {
-            file.write(json.toString(2));
-        }
-        
-        Logger.log(Logger.LEADER_ERRORS, "Updated resources.json with all member ports");   
-    }
-    
+
     /**
      * Sets up perfect links to all members.
      * 
      * @throws Exception If setup fails
      */
-    private void setupMemberLinks() throws Exception {
-        // Read the resources file to get member ports
+    protected void setupMemberLinks() throws Exception {
+        // Read the resources file to get member connections
         String content = new String(Files.readAllBytes(Paths.get(RESOURCES_FILE)));
         JSONObject json = new JSONObject(content);
-        
-        // Setup links to all members
-        for (String memberName : MEMBERS) {
-            if (!json.has(memberName)) {
-                throw new Exception("Member '" + memberName + "' not found in resources.json");
+           
+        JSONObject memberJson = json.getJSONObject(this.name);
+        JSONArray connections = memberJson.getJSONArray("connections");
+        String memberID = "0";
+        if (!this.name.equals("leader")){
+            memberID = this.name.replace("member", "");
+        }
+           
+        for (int i = 0; i < connections.length(); i++) {
+            String targetName = connections.getString(i);
+            String targetID = targetName.equals("leader") ? "0" : targetName.replace("member", "");
+               
+            if (!memberID.equals(targetID)) { // Avoid self-links
+                String targetIP = "127.0.0.1"; // Assuming localhost communication
+                int portToTarget;
+                int portFromTarget;
+                
+                // Special case for clientLibrary - use port 5005
+                if (targetName.equals("clientLibrary")) {
+                    portToTarget = 5005;
+                    portFromTarget = 6005;
+                } else {
+                    // Normal case - use the standard port format
+                    portToTarget = Integer.parseInt("70" + memberID + targetID);
+                    portFromTarget = Integer.parseInt("70" + targetID + memberID);
+                }
+                   
+                // Create and store the link
+                System.out.println("Establishing link from " + this.name + " to " + targetName +
+                        " at " + targetIP + ":" + portToTarget + ", back at " + targetIP + ":" + portFromTarget);
+                AuthenticatedPerfectLinks link = new AuthenticatedPerfectLinks(targetIP, portToTarget, portFromTarget, targetName);
+                if (targetName.equals("leader")) {
+                    leaderLink = link; // Store link in leaderLink when connecting to leader
+                } else {
+                    System.out.println("ADDING LINK TO LINKS LIST: " + targetName);
+                    memberLinks.put(targetName, link);
+                }
+                   
+                Logger.log(Logger.LEADER_ERRORS, "Established link from " + this.name + " to " + targetName +
+                        " at " + targetIP + ":" + portToTarget + ", back at " + targetIP + ":" + portFromTarget);
             }
-            
-            JSONObject memberJson = json.getJSONObject(memberName);
-            int memberPort = Integer.parseInt(memberJson.getString("memberPort"));
-            String memberIP = "127.0.0.1"; // Assuming members are on localhost
-            
-            // Calculate leader port for this connection (memberPort + 1000)
-            int leaderPortForMember = memberPort + 1000;
-            
-            // Create perfect link to member using leader port
-            AuthenticatedPerfectLinks link = new AuthenticatedPerfectLinks(memberIP, memberPort, leaderPortForMember, memberName);
-            memberLinks.put(memberName, link);
-
-            Logger.log(Logger.LEADER_ERRORS, "Established link with " + memberName + " at " + memberIP + ":" + memberPort +
-                               " using leader port " + leaderPortForMember);
         }
     }
-    
     /**
      * Registers message handlers for the key exchange protocol.
      */
@@ -329,13 +308,6 @@ public class Leader extends Member {
             // Start listening for messages
             Logger.log(Logger.LEADER_ERRORS, "Listening for messages on port " + port);
             
-            // Print member connections with their corresponding leader ports
-            for (String memberName : memberLinks.keySet()) {
-                int memberPort = memberPorts.get(memberName);
-                int leaderPortForMember = memberPort + 1000;
-                Logger.log(Logger.LEADER_ERRORS, "Connection to " + memberName + ": member port " + memberPort + 
-                        ", leader port " + leaderPortForMember);
-            }
             
             // Initiate key exchange with all members
             initiateAllKeyExchanges();
@@ -444,7 +416,10 @@ public class Leader extends Member {
         
         try {
             // Get clientLibrary link
+            System.out.println("Printing memberLinks keys");
+            System.out.println(memberLinks.keySet());
             AuthenticatedPerfectLinks clientLink = memberLinks.get("clientLibrary");
+
             if (clientLink == null) {
                 throw new Exception("No link established with clientLibrary");
             }
@@ -532,17 +507,11 @@ public class Leader extends Member {
                 
             case "APPEND_BLOCKCHAIN":
                 Logger.log(Logger.LEADER_ERRORS, "Executing append to blockchain command");
-                boolean success = epochConsensus.appendToBlockchain(payload);
-                if (success) {
-                    Logger.log(Logger.LEADER_ERRORS, "Successfully appended to blockchain: " + payload);
-                } else {
-                    Logger.log(Logger.LEADER_ERRORS, "Failed to append to blockchain: " + payload);
-                }
+                epochConsensus.propose(payload);
                 break;
                 
             case "GET_BLOCKCHAIN":
                 Logger.log(Logger.LEADER_ERRORS, "Executing get blockchain command");
-                processGetBlockchainCommand();
                 break;
                 
             case "INIT_KEY_EXCHANGE":
@@ -556,48 +525,18 @@ public class Leader extends Member {
                     Logger.log(Logger.LEADER_ERRORS, "Unknown member for key exchange: " + targetMember);
                 }
                 break;
+            case "CMD_STATE":
+                Logger.log(Logger.LEADER_ERRORS, "Executing state command");
+                epochConsensus.processState(message);
+                break;
                 
             default:
                 Logger.log(Logger.LEADER_ERRORS, "Unknown command: " + command);
                 break;
         }
     }
-    /**
-     * Process a GET_BLOCKCHAIN command from the client.
-     * Uses the Byzantine read phase to collect blockchain data from members.
-     * 
-     * @throws Exception If processing fails
-     */
-    private void processGetBlockchainCommand() throws Exception {
-        Logger.log(Logger.LEADER_ERRORS, "Executing get blockchain command using Byzantine read phase");
-        
-        try {
-            // Use the Byzantine read phase to get the blockchain
-            List<String> blockchain = epochConsensus.getBlockchain();
-            
-            // Format the blockchain for display
-            String blockchainStr = String.join(" -> ", blockchain);
-            
-            Logger.log(Logger.LEADER_ERRORS, "Retrieved blockchain using Byzantine read: " + blockchainStr);
-            
-            // Send response to the client
-            sendToMember("clientLibrary", blockchainStr, "BLOCKCHAIN_RESULT");
-            
-        } catch (Exception e) {
-            Logger.log(Logger.LEADER_ERRORS, "Error retrieving blockchain: " + e.getMessage());
-            sendToMember("clientLibrary", "Error: " + e.getMessage(), "BLOCKCHAIN_RESULT");
-        }
-    } 
-    
-    /**
-     * Gets the EpochConsensus instance.
-     * 
-     * @return The EpochConsensus instance
-     */
-    public EpochConsensus getEpochConsensus() {
-        return epochConsensus;
-    }
-    
+
+
     /**
      * Main method to start a leader instance.
      * 
@@ -607,26 +546,6 @@ public class Leader extends Member {
     public static void main(String[] args) throws Exception {
         Leader leader = new Leader(BASE_PORT);
         Logger.initFromArgs("--log=2,3,4,1"); 
-        
-        if (args.length > 0 && args[0].equalsIgnoreCase("test")) {
-            // Only run the communication test
-            Logger.log(Logger.LEADER_ERRORS, "Running in test mode");
-            leader.testCommunication();
-            
-            // Test key exchange
-            Logger.log(Logger.LEADER_ERRORS, "Testing key exchange with member1");
-            leader.initiateKeyExchange("member1");
-            Thread.sleep(2000); // Wait for the key exchange to complete
-            
-            // Test blockchain append
-            Logger.log(Logger.LEADER_ERRORS, "Testing blockchain append");
-            leader.getEpochConsensus().appendToBlockchain("Initial block");
-            leader.getEpochConsensus().appendToBlockchain("Second block");
-            List<String> blockchain = leader.getEpochConsensus().getBlockchain();
-            Logger.log(Logger.LEADER_ERRORS, "Blockchain: " + String.join(", ", blockchain));
-        } else {
-            // Run the full leader service
-            leader.start();
-        }
+        leader.start();
     }
 }
