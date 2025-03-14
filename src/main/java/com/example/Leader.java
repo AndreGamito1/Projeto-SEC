@@ -19,11 +19,11 @@ public class Leader extends Member {
     private int port;
     private static final String RESOURCES_FILE = "shared/resources.json";
     private static final String[] MEMBERS = {"member1", "member2", "member3", "member4"};
-    private static final int BASE_PORT = 5000; // Leader will be at 5000, members at 5001-5004, clientLibrary at 5005
+    private static final int BASE_PORT = 5000; 
     
     private Map<String, AuthenticatedPerfectLinks> memberLinks = new HashMap<>();
     private Map<String, Integer> memberPorts = new HashMap<>();
-    private Map<String, SecretKey> memberKeys = new HashMap<>(); // Store AES keys for each member
+    private Map<String, SecretKey> memberKeys = new HashMap<>(); 
     
     // Constants for key exchange protocol
     private static final String CMD_KEY_EXCHANGE = "KEY_EXCHANGE";
@@ -40,27 +40,21 @@ public class Leader extends Member {
      * @throws Exception If initialization fails
      */
     public Leader(int port) throws Exception {
-        // Call the Member constructor with "leader" as the name
         super("leader");
         this.port = port;    
-        // Initialize member ports
         for (int i = 0; i < MEMBERS.length; i++) {
             memberPorts.put(MEMBERS[i], BASE_PORT + i + 1);
             
-            // Initialize connections map entry for this member with an empty key (to be filled later)
             connections.put(MEMBERS[i], "");
         }
         setupMemberLinks();
         
-        // Initialize EpochConsensus
-        // Only proceed if memberLinks has entries
         if (memberLinks.isEmpty()) {
             Logger.log(Logger.LEADER_ERRORS, "Warning: memberLinks is empty when initializing EpochConsensus");
         }
         AuthenticatedPerfectLinks[] memberLinksArray = memberLinks.values().toArray(new AuthenticatedPerfectLinks[0]);
         this.epochConsensus = new ByzantineEpochConsensus(this.name, true, 4, 1, 0, memberLinksArray);
         
-        // Initialize the KeyManager (inherited from Member class)
         Logger.log(Logger.LEADER_ERRORS, "Initializing KeyManager for leader");
     }
     
@@ -71,7 +65,6 @@ public class Leader extends Member {
      * @throws Exception If setup fails
      */
     protected void setupMemberLinks() throws Exception {
-        // Read the resources file to get member connections
         String content = new String(Files.readAllBytes(Paths.get(RESOURCES_FILE)));
         JSONObject json = new JSONObject(content);
            
@@ -86,27 +79,24 @@ public class Leader extends Member {
             String targetName = connections.getString(i);
             String targetID = targetName.equals("leader") ? "0" : targetName.replace("member", "");
                
-            if (!memberID.equals(targetID)) { // Avoid self-links
-                String targetIP = "127.0.0.1"; // Assuming localhost communication
+            if (!memberID.equals(targetID)) { 
+                String targetIP = "127.0.0.1"; 
                 int portToTarget;
                 int portFromTarget;
                 
-                // Special case for clientLibrary - use port 5005
                 if (targetName.equals("clientLibrary")) {
                     portToTarget = 5005;
                     portFromTarget = 6005;
                 } else {
-                    // Normal case - use the standard port format
                     portToTarget = Integer.parseInt("70" + memberID + targetID);
                     portFromTarget = Integer.parseInt("70" + targetID + memberID);
                 }
                    
-                // Create and store the link
                 System.out.println("Establishing link from " + this.name + " to " + targetName +
                         " at " + targetIP + ":" + portToTarget + ", back at " + targetIP + ":" + portFromTarget);
                 AuthenticatedPerfectLinks link = new AuthenticatedPerfectLinks(targetIP, portToTarget, portFromTarget, targetName);
                 if (targetName.equals("leader")) {
-                    leaderLink = link; // Store link in leaderLink when connecting to leader
+                    leaderLink = link; 
                 } else {
                     System.out.println("ADDING LINK TO LINKS LIST: " + targetName);
                     memberLinks.put(targetName, link);
@@ -128,14 +118,11 @@ public class Leader extends Member {
         Logger.log(Logger.LEADER_ERRORS, "Initiating key exchange with " + memberName);
         
         try {
-            // Generate a new AES key for this member
             SecretKey aesKey = AuthenticatedPerfectLinks.generateAesKey();
             memberKeys.put(memberName, aesKey);
             
-            // Convert the key to a string for transmission
             String keyString = AuthenticatedPerfectLinks.aesKeyToString(aesKey);
             
-            // Get the member's public key using KeyManager
             KeyManager keyManager = new KeyManager("leader");
             java.security.PublicKey publicKey = keyManager.getPublicKey(memberName);
             
@@ -143,10 +130,8 @@ public class Leader extends Member {
                 throw new Exception("No public key found for " + memberName);
             }
             
-            // Encrypt the AES key with the member's public key
             String encryptedKey = AuthenticatedPerfectLinks.encryptWithRsa(keyString, publicKey);
             
-            // Send the encrypted key to the member
             sendToMember(memberName, encryptedKey, CMD_KEY_EXCHANGE);
             
             Logger.log(Logger.LEADER_ERRORS, "Sent RSA-encrypted key exchange to " + memberName);
@@ -166,19 +151,15 @@ public class Leader extends Member {
     private void handleKeyAcknowledgment(String memberName, AuthenticatedMessage message) throws Exception {
         Logger.log(Logger.LEADER_ERRORS, "Received key acknowledgment from " + memberName);
         
-        // Verify that we have a key for this member
         if (!memberKeys.containsKey(memberName)) {
             throw new Exception("No key found for " + memberName);
         }
         
-        // Get the key for this member
         SecretKey aesKey = memberKeys.get(memberName);
         
-        // Set the key for the perfect link
         AuthenticatedPerfectLinks link = memberLinks.get(memberName);
         link.changeKey(aesKey);
         
-        // Send a final confirmation that we're now using the key
         sendToMember(memberName, "OK", CMD_KEY_OK);
         
         Logger.log(Logger.LEADER_ERRORS, "Completed key exchange with " + memberName + ", now using AES encryption");
@@ -196,7 +177,6 @@ public class Leader extends Member {
         for (String memberName : memberLinks.keySet()) {
             try {
                 initiateKeyExchange(memberName);
-                // Short delay to prevent overloading the network
                 Thread.sleep(500);
             } catch (Exception e) {
                 Logger.log(Logger.LEADER_ERRORS, "Failed to initiate key exchange with " + memberName + ": " + e.getMessage());
@@ -249,19 +229,15 @@ public class Leader extends Member {
         Logger.log(Logger.LEADER_ERRORS, "Initializing...");
         
         try {
-            // Start listening for messages
             Logger.log(Logger.LEADER_ERRORS, "Listening for messages on port " + port);
             
             
-            // Initiate key exchange with all members
             initiateAllKeyExchanges();
             
-            // Start the main message processing loop
             Thread messageThread = new Thread(this::processAllMessages);
             messageThread.setDaemon(true);
             messageThread.start();
             
-            // Run the main leader loop
             while (true) {
                 Thread.sleep(5000);
                 Logger.log(Logger.LEADER_ERRORS, "Leader is running...");
@@ -282,14 +258,12 @@ public class Leader extends Member {
         Logger.log(Logger.LEADER_ERRORS, "Starting to process all messages...");
         
         try {
-            // Track message counts for each connection
             Map<String, Integer> previousCounts = new HashMap<>();
             for (String memberName : memberLinks.keySet()) {
                 previousCounts.put(memberName, 0);
             }
             
             while (true) {
-                // Process messages from all members and client
                 for (String memberName : memberLinks.keySet()) {
                     AuthenticatedPerfectLinks link = memberLinks.get(memberName);
                     List<AuthenticatedMessage> messages = link.getReceivedMessages();
@@ -306,7 +280,7 @@ public class Leader extends Member {
                     }
                 }
                 
-                Thread.sleep(100); // Short sleep to prevent CPU hogging
+                Thread.sleep(100);
             }
         } catch (Exception e) {
             Logger.log(Logger.LEADER_ERRORS, "Error in message processing loop: " + e.getMessage());
@@ -327,12 +301,9 @@ public class Leader extends Member {
         Logger.log(Logger.LEADER_ERRORS, "Processing message from " + sourceId + ": " + command);
         
         try {
-            // Handle messages differently based on source
             if (sourceId.equals("clientLibrary")) {
-                // Process client commands
                 processClientCommand(command, payload);
             } else {
-                // Process member messages
                 processMemberMessage(sourceId, command, payload, message);
             }
         } catch (Exception e) {
@@ -351,7 +322,6 @@ public class Leader extends Member {
      * @throws Exception If processing fails
      */
     private void processMemberMessage(String memberName, String command, String payload, AuthenticatedMessage message) throws Exception {
-        // Process based on command type
         switch (command) {
             case CMD_KEY_ACK:
                 handleKeyAcknowledgment(memberName, message);
@@ -362,7 +332,6 @@ public class Leader extends Member {
                 break;
                 
             case "STATE_UPDATE":
-                // Process state updates for consensus
                 epochConsensus.processState(message);
                 break;
 
@@ -387,7 +356,6 @@ public class Leader extends Member {
     private void processClientCommand(String command, String payload) throws Exception {
         Logger.log(Logger.LEADER_ERRORS, "Processing client command: " + command + " with payload: " + payload);
         
-        // Process standard commands
         switch (command) {
             case "BROADCAST":
                 Logger.log(Logger.LEADER_ERRORS, "Executing broadcast command");
@@ -431,7 +399,6 @@ public class Leader extends Member {
             int receivedCount = link.getReceivedSize();
             Logger.log(Logger.LEADER_ERRORS, "Received messages for " + memberName + ": " + receivedCount);
             
-            // Also log encryption status
             SecretKey key = memberKeys.getOrDefault(memberName, null);
             boolean usingEncryption = (key != null);
             Logger.log(Logger.LEADER_ERRORS, "Encryption status for " + memberName + ": " + 
@@ -441,8 +408,6 @@ public class Leader extends Member {
 
     /**
      * Main method to start a leader instance.
-     * 
-     * @param args Command line arguments (none required)
      * @throws Exception If initialization fails
      */
     public static void main(String[] args) throws Exception {

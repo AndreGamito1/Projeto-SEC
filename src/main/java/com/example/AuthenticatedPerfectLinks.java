@@ -20,9 +20,9 @@ interface MessageCallback {
 public class AuthenticatedPerfectLinks implements MessageCallback {
     private List<AuthenticatedMessage> received;
     private StubbornLinks stubbornLink;
-    private String destinationEntity; // The name of the entity we're communicating with
-    private SecretKey aesKey; // AES key for symmetric encryption
-    private boolean usingAesKey = false; // Flag to indicate if we're using AES
+    private String destinationEntity; 
+    private SecretKey aesKey; 
+    private boolean usingAesKey = false; 
     
     // Constants for key exchange protocol
     private static final String CMD_KEY_EXCHANGE = "KEY_EXCHANGE";
@@ -47,6 +47,7 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
             e.printStackTrace();
         }
     }
+    
     /**
      * Clears all received messages from the buffer.
      */
@@ -55,8 +56,9 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
             received.clear();
         }
     }
+
     /**
-     * Constructor without destEntity for backward compatibility.
+     * Constructor without destEntity.
      */
     public AuthenticatedPerfectLinks(String destIP, int destPort, int hostPort) {
         this(destIP, destPort, hostPort, "unknown");
@@ -73,13 +75,11 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
         if (message.getCommand().equals(CMD_KEY_EXCHANGE) || 
             message.getCommand().equals(CMD_KEY_ACK) ||
             message.getCommand().equals(CMD_KEY_OK)) {
-            // These messages use the default authentication or RSA
             String authString = authenticate(message);
             AuthenticatedMessage authMessage = new AuthenticatedMessage(message, authString);
             stubbornLink.sp2pSend(authMessage);
             Logger.log(Logger.AUTH_LINKS, "Key exchange message sent to " + dest + ": " + message.getCommand());
         } else if (usingAesKey) {
-            // Use AES encryption for regular messages
             try {
                 // Encrypt the payload with AES
                 String encryptedPayload = encryptWithAes(message.getPayload(), aesKey);
@@ -117,7 +117,6 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
             // Handle key exchange protocol messages
             String command = authMessage.getCommand();
             if (command.equals(CMD_KEY_EXCHANGE) || command.equals(CMD_KEY_ACK) || command.equals(CMD_KEY_OK)) {
-                // Add to received queue without decryption
                 received.add(authMessage);
                 Logger.log(Logger.AUTH_LINKS, "Received key exchange message: " + command);
             } else if (usingAesKey) {
@@ -125,7 +124,6 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
                     // Decrypt the payload
                     String decryptedPayload = decryptWithAes(authMessage.getPayload(), aesKey);
                     
-                    // Create a new authenticated message with the decrypted payload
                     Message decryptedMessage = new Message(decryptedPayload, authMessage.getCommand());
                     AuthenticatedMessage newAuthMessage = new AuthenticatedMessage(
                         decryptedMessage, authMessage.getAuthString(), authMessage.getMessageID());
@@ -137,7 +135,6 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
                     e.printStackTrace();
                 }
             } else {
-                // No encryption, just add to received queue
                 received.add(authMessage);
                 Logger.log(Logger.AUTH_LINKS, "Received authenticated message: " + authMessage.getPayload());
             }
@@ -174,24 +171,20 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
      * @return true if the message is authentic and not a duplicate
      */
     public boolean verifyauth(AuthenticatedMessage authMessage) {
-        // Check for duplicates
         for (AuthenticatedMessage receivedMessage : received) {
             if (receivedMessage.getMessageID().equals(authMessage.getMessageID())) {
                 return false;
             }
         }
         
-        // For key exchange messages, use the original verification
         String command = authMessage.getCommand();
         if (command.equals(CMD_KEY_EXCHANGE) || command.equals(CMD_KEY_ACK) || command.equals(CMD_KEY_OK)) {
             String expectedAuthString = authenticate(authMessage);
             return authMessage.getAuthString().equals(expectedAuthString);
         } else if (usingAesKey) {
-            // For encrypted messages, verify auth on the encrypted payload
             String expectedAuthString = authenticate(authMessage);
             return authMessage.getAuthString().equals(expectedAuthString);
         } else {
-            // Standard verification
             String expectedAuthString = authenticate(authMessage);
             return authMessage.getAuthString().equals(expectedAuthString);
         }

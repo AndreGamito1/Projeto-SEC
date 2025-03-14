@@ -103,7 +103,6 @@ public class ConditionalCollect {
      */
     public void input(Message message) {
         this.collected = false;
-        // Add the state to our vector
         System.out.println("inputing message: " + message.getPayload());
         System.out.println(message);
         System.out.println(this.self);
@@ -139,7 +138,6 @@ public class ConditionalCollect {
             }
             System.out.println("------------- Checking Collection Condition ---------------");
             
-            // Count message occurrences to find if there's a Byzantine quorum
             Map<String, Integer> stateOccurrences = new HashMap<>();
             int nullCount = 0;
             int messageCount = 0;
@@ -147,7 +145,6 @@ public class ConditionalCollect {
             System.out.println("Total messages in dictionary: " + messages.size());
             System.out.println("Messages: " + messages);
             
-            // Iterate through the Dictionary entries
             Enumeration<String> keys = messages.keys();
             while (keys.hasMoreElements()) {
                 String processId = keys.nextElement();
@@ -161,7 +158,6 @@ public class ConditionalCollect {
                         nullCount++;
                     } else {
                         System.out.println("Process " + processId + " has payload: [" + statePayload + "]");
-                        // Check if the payload is the string "null"
                         if ("null".equals(statePayload)) {
                             System.out.println("WARNING: Process " + processId + " has string 'null' as payload, not actual null!");
                         }
@@ -170,14 +166,12 @@ public class ConditionalCollect {
                 }
             }
             
-            // Byzantine quorum needs at least (N+1)/2 states for N=4
             int quorumSize = (N + 1) / 2;
             System.out.println("Total nodes: " + N);
             System.out.println("Required quorum size: " + quorumSize);
             System.out.println("Total null count: " + nullCount);
             System.out.println("State occurrences: " + stateOccurrences);
             
-            // Check if any state has reached the quorum
             String quorumState = null;
             for (Map.Entry<String, Integer> entry : stateOccurrences.entrySet()) {
                 System.out.println("Checking state: [" + entry.getKey() + "] with count: " + entry.getValue());
@@ -188,16 +182,11 @@ public class ConditionalCollect {
                 }
             }
             
-            // Check if null states reached a quorum
             boolean nullQuorum = (nullCount >= quorumSize);
             System.out.println("Null quorum reached: " + nullQuorum + " (" + nullCount + "/" + quorumSize + ")");
            
-            // Broadcast if either a regular quorum or a null quorum is found
             if (quorumState != null || nullQuorum) {
-                // Create a Map to hold all messages
                 Map<String, Message> allMessages = new HashMap<>();
-
-                // Collect all messages
                 keys = messages.keys();
                 while (keys.hasMoreElements()) {
                     String processId = keys.nextElement();
@@ -208,21 +197,17 @@ public class ConditionalCollect {
                     }
                 }
 
-                // Convert messages to serializable format
                 System.out.println("Serializing messages:" + messages);
                 String messagesJson = serializeMessages(allMessages);  // Using allMessages instead of quorumMessages
                 System.out.println("Serialized messages:" + messagesJson);
                
-                // Create a COLLECTED message with the collected messages
                 Message collectedMessage = new Message(messagesJson, CMD_COLLECTED);
                
-                // Send COLLECTED message to all processes
                 for (AuthenticatedPerfectLinks link : links) {
                     link.alp2pSend(link.getDestinationEntity(), collectedMessage);
                     System.out.println("----------------- Sent COLLECTED message to member: " + link.getDestinationEntity() + " -----------------");
                 }
                
-                // Reset state
                 init();
                 this.collected = true;
             }
@@ -239,19 +224,15 @@ public class ConditionalCollect {
 public void processCollected(Message message) {
     if (collected) {
         System.out.println("Already collected, ignoring COLLECTED message");
-        return; // Already collected
+        return; 
     }
     System.out.println("----------------- Processing COLLECTED message -----------------");
     try {
-        // Get the payload as a string
         String strPayload = message.getPayload();
         System.out.println("Received payload: " + strPayload);
         
-        // Try to extract messages from the string
         Map<String, Message> collectedMessages = new HashMap<>();
         
-        // Extract the leader's message
-        // Format is: {"leader":{"payload":"STATE,0,[Client1] eren, ","command":"STATE","messageID":"93c5a687-5675-4b7f-8817-83515ee1afef"}}
         if (strPayload.contains("\"leader\":{")) {
             int payloadStart = strPayload.indexOf("\"payload\":\"") + "\"payload\":\"".length();
             int payloadEnd = strPayload.indexOf("\"", payloadStart);
@@ -268,18 +249,15 @@ public void processCollected(Message message) {
                 Message leaderMessage = new Message(leaderPayload, leaderCommand);
                 collectedMessages.put("leader", leaderMessage);
                 
-                // Also add it under the leader ID for quorum checking
                 collectedMessages.put(leader, leaderMessage);
                 
                 System.out.println("Extracted leader message with payload: " + leaderPayload);
             }
         }
         
-        // Count message occurrences to verify the Byzantine quorum
         Map<String, Integer> stateOccurrences = new HashMap<>();
         int nonNullCount = 0;
         
-        // Track the leader's message specifically
         Message leaderMessage = collectedMessages.get(leader);
         
         for (Map.Entry<String, Message> entry : collectedMessages.entrySet()) {
@@ -294,7 +272,6 @@ public void processCollected(Message message) {
         System.out.println("Number of messages: " + nonNullCount);
         System.out.println("State occurrences: " + stateOccurrences);
         
-        // Byzantine quorum needs majority for N = 4
         int quorumSize = (N + 1) / 2;
         boolean hasQuorum = false;
         String quorumState = null;
@@ -307,11 +284,8 @@ public void processCollected(Message message) {
             }
         }
         
-        // Value to adopt (either quorum value or leader's value)
         String adoptedValue = null;
         
-        // Check if we have a quorum or should adopt leader's value
-        // In this special case, we're also accepting just a leader message without requiring N-f messages
         if (nonNullCount >= 1) {
             if (hasQuorum) {
                 // Case 1: Byzantine quorum established
@@ -328,13 +302,10 @@ public void processCollected(Message message) {
                 return;
             }
             
-            // Mark as collected
             collected = true;
             
-            // Create a WRITE message with the adopted value
             Message writeMessage = new Message(adoptedValue, CMD_WRITE);
             
-            // Send WRITE message to all processes
             for (AuthenticatedPerfectLinks link : links) {
                 link.alp2pSend(link.getDestinationEntity(), writeMessage);
                 System.out.println("----------------- Sent WRITE message to member: " + link.getDestinationEntity() + " -----------------");
@@ -359,35 +330,28 @@ public void processCollected(Message message) {
 public boolean receiveWrite(AuthenticatedMessage message) {
     if (this.accepted) {
         System.out.println("Already accepted, ignoring WRITE message");
-        return false; // Already collected
+        return false; 
     }
    
     System.out.println("------------- Receiving WRITE ---------------");
    
-    // Store the received message using a unique identifier
-    String messageId = message.getMessageID(); // Using the message ID as the key
+    String messageId = message.getMessageID(); 
     protocolMessages.put(messageId, message);
    
-    // Check if we have a quorum of equal WRITE messages
     Map<String, Object> quorumResult = checkQuorum(protocolMessages);
    
-    // If a quorum is found, send ACCEPT message to all processes
     if ((Boolean)quorumResult.get("quorumFound")) {
         String quorumPayload = (String)quorumResult.get("payload");
         List<String> quorumProcesses = (List<String>)quorumResult.get("processes");
        
         System.out.println("Quorum established by processes: " + quorumProcesses);
        
-        // Create an ACCEPT message with the quorum payload
         Message acceptMessage = new Message(quorumPayload, "CMD_ACCEPT");
 
-        // Mark as collected to avoid duplicate processing
         this.accepted = true;
 
-        // Clear the protocol messages
         protocolMessages = new Hashtable<>();
                 
-        // Send ACCEPT message to all processes
         for (AuthenticatedPerfectLinks link : links) {
             link.alp2pSend(link.getDestinationEntity(), acceptMessage);
             System.out.println("----------------- Sent CMD_ACCEPT message to member: " + link.getDestinationEntity() + " -----------------");
@@ -407,13 +371,11 @@ public boolean receiveWrite(AuthenticatedMessage message) {
 private Map<String, Object> checkQuorum(Dictionary<String, Message> messageDict) {
     System.out.println("------------- Checking Quorum ---------------");
     
-    // Count message payload occurrences to find if there's a Byzantine quorum
     Map<String, Integer> payloadOccurrences = new HashMap<>();
     Map<String, List<String>> payloadToProcesses = new HashMap<>();
     
     System.out.println("Total messages in dictionary: " + messageDict.size());
     
-    // Iterate through the Dictionary entries
     Enumeration<String> keys = messageDict.keys();
     while (keys.hasMoreElements()) {
         String processId = keys.nextElement();
@@ -424,10 +386,8 @@ private Map<String, Object> checkQuorum(Dictionary<String, Message> messageDict)
             if (payload != null) {
                 System.out.println("Process " + processId + " has payload: [" + payload + "]");
                 
-                // Count occurrences
                 payloadOccurrences.put(payload, payloadOccurrences.getOrDefault(payload, 0) + 1);
                 
-                // Track which processes have this payload
                 List<String> processes = payloadToProcesses.getOrDefault(payload, new ArrayList<>());
                 processes.add(processId);
                 payloadToProcesses.put(payload, processes);
@@ -435,12 +395,10 @@ private Map<String, Object> checkQuorum(Dictionary<String, Message> messageDict)
         }
     }
     
-    // Byzantine quorum needs at least (N+1)/2 states
     int quorumSize = (N + 1) / 2;
     System.out.println("Required quorum size: " + quorumSize);
     System.out.println("Payload occurrences: " + payloadOccurrences);
     
-    // Check if any payload has reached the quorum
     String quorumPayload = null;
     List<String> quorumProcesses = null;
     
@@ -454,7 +412,6 @@ private Map<String, Object> checkQuorum(Dictionary<String, Message> messageDict)
         }
     }
     
-    // Return result information
     Map<String, Object> result = new HashMap<>();
     result.put("quorumFound", quorumPayload != null);
     result.put("payload", quorumPayload);
@@ -470,27 +427,21 @@ private Map<String, Object> checkQuorum(Dictionary<String, Message> messageDict)
     private Map<String, Message> deserializeMessages(String json) {
         Map<String, Message> result = new HashMap<>();
         
-        // Simple parsing - in a real implementation use a JSON library
         if (json.startsWith("{") && json.endsWith("}")) {
-            // Remove the outer braces
             String content = json.substring(1, json.length() - 1);
             
-            // Split by commas that are followed by a quoted process ID
             String[] entries = content.split(",(?=\")");
             
             for (String entry : entries) {
-                // Find the process ID
                 int idStart = entry.indexOf("\"") + 1;
                 int idEnd = entry.indexOf("\"", idStart);
                 
                 if (idStart > 0 && idEnd > idStart) {
                     String processId = entry.substring(idStart, idEnd);
                     
-                    // Check if this is a null entry
                     if (entry.contains(":null")) {
                         result.put(processId, null);
                     } else {
-                        // Extract message parts
                         int payloadStart = entry.indexOf("\"payload\":\"") + 11;
                         int payloadEnd = entry.indexOf("\"", payloadStart);
                         int commandStart = entry.indexOf("\"command\":\"") + 11;
@@ -517,7 +468,6 @@ private Map<String, Object> checkQuorum(Dictionary<String, Message> messageDict)
      * @return JSON string representation
      */
     private String serializeMessages(Map<String, Message> messages) {
-        // In a real implementation, this would use proper JSON serialization
         StringBuilder sb = new StringBuilder("{");
         boolean first = true;
         

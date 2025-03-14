@@ -26,28 +26,16 @@ public class Member {
     protected EpochState currentEpoch;
     protected List<EpochState> writeSet;    
     private static final String RESOURCES_FILE = "shared/resources.json";
-    private static final String[] MEMBERS = {"member1", "member2", "member3", "member4"};
     private final ConditionalCollect conditionalCollect;
     protected List<String> blockchain;
-    
-    // Add connections attribute to store symmetric keys
     protected Map<String, String> connections = new HashMap<>();
-    
-    // Add KeyManager for cryptographic operations
     protected KeyManager keyManager;
-    
-    // Track the last processed message index
     private int lastProcessedIndex = 0;
     
     // Constants for commands used in messages
     private static final String CMD_PROPOSE = "EPOCH_PROPOSE";
     private static final String CMD_ABORT = "EPOCH_ABORT";
     private static final String CMD_DECIDE = "EPOCH_DECIDE";
-    private static final String CMD_ACK = "EPOCH_ACK";
-    
-    private static final String CMD_READ_REPLY = "EPOCH_READ_REPLY";
-    
-    // Constants for key exchange protocol
     private static final String CMD_KEY_EXCHANGE = "KEY_EXCHANGE";
     private static final String CMD_KEY_ACK = "KEY_ACK";
     private static final String CMD_KEY_OK = "KEY_OK";
@@ -56,6 +44,8 @@ public class Member {
     private static final String CMD_READ = "CMD_READ";
     private static final String CMD_WRITE = "CMD_WRITE";
     private static final String CMD_ACCEPT = "CMD_ACCEPT";
+
+
     /**
      * Constructor for Member.
      * 
@@ -65,7 +55,6 @@ public class Member {
     public Member(String name) throws Exception {
         this.name = name;
         this.currentEpoch = new EpochState(0, "0", new TimestampValue[0]);
-        // Initialize the KeyManager
         keyManager = new KeyManager(name);
 
         if(!name.equals("leader")){
@@ -80,7 +69,6 @@ public class Member {
             memberLinksArray
         );
         
-        // Initialize connections map with an empty key for the leader
         this.blockchain = new ArrayList<>();
         connections.put("leader", "");
         
@@ -93,7 +81,6 @@ public class Member {
      * @throws Exception If setup fails
      */
     protected void setupMemberLinks() throws Exception {
-        // Read the resources file to get member connections
         String content = new String(Files.readAllBytes(Paths.get(RESOURCES_FILE)));
         JSONObject json = new JSONObject(content);
            
@@ -108,27 +95,24 @@ public class Member {
             String targetName = connections.getString(i);
             String targetID = targetName.equals("leader") ? "0" : targetName.replace("member", "");
                
-            if (!memberID.equals(targetID)) { // Avoid self-links
-                String targetIP = "127.0.0.1"; // Assuming localhost communication
+            if (!memberID.equals(targetID)) { 
+                String targetIP = "127.0.0.1"; 
                 int portToTarget;
                 int portFromTarget;
                 
-                // Special case for clientLibrary - use port 5005
                 if (targetName.equals("clientLibrary")) {
                     portToTarget = 5005;
                     portFromTarget = 6005;
                 } else {
-                    // Normal case - use the standard port format
                     portToTarget = Integer.parseInt("70" + memberID + targetID);
                     portFromTarget = Integer.parseInt("70" + targetID + memberID);
                 }
                    
-                // Create and store the link
                 System.out.println("Establishing link from " + this.name + " to " + targetName +
                         " at " + targetIP + ":" + portToTarget + ", back at " + targetIP + ":" + portFromTarget);
                 AuthenticatedPerfectLinks link = new AuthenticatedPerfectLinks(targetIP, portToTarget, portFromTarget, targetName);
                 if (targetName.equals("leader")) {
-                    leaderLink = link; // Store link in leaderLink when connecting to leader
+                    leaderLink = link; 
                 } else {
                     System.out.println("ADDING LINK TO LINKS LIST: " + targetName);
                     memberLinks.put(targetName, link);
@@ -170,17 +154,12 @@ public class Member {
         
         
         try {
-            // Start a separate thread to print blockchain status every 3 seconds
             Thread statusThread = new Thread(this::printBlockchainStatus);
             statusThread.setDaemon(true);
             statusThread.start();
             
-            // Start the message processing loop
             while (true) {
-                // Process any new messages from the leader
                 processMessages();
-                
-                // Sleep to prevent CPU hogging
                 Thread.sleep(100);
             }
         } catch (Exception e) {
@@ -195,12 +174,10 @@ public class Member {
     private void printBlockchainStatus() {
         try {
             while (true) {
-                // Print the current blockchain status
                 System.out.println("\n========== " + name + " BLOCKCHAIN STATUS ==========");
                 System.out.println(blockchain);
                 System.out.println("=================================================\n");
                 
-                // Wait for 3 seconds
                 Thread.sleep(3000);
             }
         } catch (InterruptedException e) {
@@ -221,7 +198,6 @@ public class Member {
             messages.addAll(link.getReceivedMessages());
         }
     
-        // Process only the new messages
         int messageCount = messages.size();
         while (lastProcessedIndex < messageCount) {
             AuthenticatedMessage authMessage = messages.get(lastProcessedIndex);
@@ -247,7 +223,6 @@ public class Member {
                     break;
 
                 case CMD_ACCEPT:
-                    System.out.println("Received ACCEPT message");
                     break;
                     
                 case CMD_PROPOSE:
@@ -260,10 +235,7 @@ public class Member {
                     break;
     
                 case CMD_COLLECTED:
-                    System.out.println("Received COLLECTED message from leader");
-                    System.out.println(payload);
                     conditionalCollect.processCollected(authMessage);
-                    System.out.println("Processed COLLECTED message from leader");
                     break;
     
                 case "TEST_MESSAGE":
@@ -295,24 +267,19 @@ public class Member {
         try {
             Logger.log(Logger.MEMBER, "Received KEY_EXCHANGE from leader");
             
-            // Get our private key
             PrivateKey privateKey = keyManager.getPrivateKey(name);
             if (privateKey == null) {
                 throw new Exception("No private key found for " + name);
             }
             
-            // Decrypt the AES key using our private key
             String encryptedKey = authMessage.getPayload();
             String aesKeyStr = AuthenticatedPerfectLinks.decryptWithRsa(encryptedKey, privateKey);
             
-            // Store the AES key in the connections map
             connections.put("leader", aesKeyStr);
             
-            // Send acknowledgment to the leader
             sendToLeader("ACK", CMD_KEY_ACK);
             Logger.log(Logger.MEMBER, "Sent KEY_ACK to leader");
             
-            // Convert string to AES key and change the key in the perfect link
             SecretKey aesKey = AuthenticatedPerfectLinks.stringToAesKey(aesKeyStr);
             leaderLink.changeKey(aesKey);
             
@@ -335,7 +302,6 @@ public class Member {
         System.out.println("Current blockchain: " + printWriteSet());
     
         
-        // Send reply with format: "epoch|lastValue|writeSet"
         System.out.println("Sending STATE TO LEADER:");
         System.out.println(this.name + "|" + null);
         sendToLeader(this.name + "|" + null, CMD_STATE);
@@ -355,6 +321,7 @@ public class Member {
         };
         return;
     }
+
     /**
      * Sends a message to the leader.
      * 
@@ -395,15 +362,7 @@ public class Member {
         return name;
     }
     
-    /**
-     * Callback method for when messages are collected by conditional collect.
-     * Simply forwards the collected message to all processes.
-     *
-     * @param messages The collected messages
-     */
-    private void onMessagesCollected(Message message) {
-        blockchain.add(message.getPayload());
-    }
+
 
     /**
      * Main method to start a member instance.

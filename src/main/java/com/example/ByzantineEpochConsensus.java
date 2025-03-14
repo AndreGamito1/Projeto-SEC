@@ -17,12 +17,9 @@ interface ByzantineEpochConsensusInterface {
  * Implementation of Byzantine Epoch Consensus protocol.
  */
 public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface {
-    // Instance identifier
     private final String self;
     private final boolean isLeader;
-    private final int N; // Total number of processes
-    private final int f; // Max number of process failures
-    private final long epochTimestamp;
+    private final int N; 
     private final String leader;
     
     // Components
@@ -57,20 +54,11 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
         
         this.self = self;
         this.N = n;
-        this.f = f;
-        this.epochTimestamp = epochTimestamp;
         this.authenticatedLinks = authenticatedLinks;
         this.isLeader = isLeader;
         this.leader = "leader";
         
-        // Initialize conditional collect with sound predicate
-        this.conditionalCollect = new ConditionalCollect(
-            self,
-            leader,
-            n,
-            f,
-            authenticatedLinks
-        );
+        this.conditionalCollect = new ConditionalCollect(self,leader,n,f, authenticatedLinks);
         
         // Initialize arrays
         this.written = new String[N];
@@ -78,8 +66,8 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
         
         // Initialize arrays with null values
         for (int i = 0; i < N; i++) {
-            written[i] = null;  // ⊥ in pseudocode
-            accepted[i] = null; // ⊥ in pseudocode
+            written[i] = null;  
+            accepted[i] = null; 
         }
         
         Logger.log(Logger.EPOCH_CONSENSUS, "ByzantineEpochConsensus initialized. Self: " + 
@@ -93,15 +81,13 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
      */
     @Override
     public void init(EpochState epochState) {
-        // Initialize state from epoch state
         this.valts = epochState.getTimestamp();
         this.val = epochState.getValue();
         this.writeSet = epochState.getWriteSet();
         
-        // Initialize arrays
         for (int i = 0; i < N; i++) {
-            written[i] = null;  // ⊥ in pseudocode
-            accepted[i] = null; // ⊥ in pseudocode
+            written[i] = null; 
+            accepted[i] = null; 
         }
         
         Logger.log(Logger.EPOCH_CONSENSUS, 
@@ -115,13 +101,11 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
      * @param value The value being proposed
      */
     public void propose(String value) {
-        // Only the leader should process propose events
         if (!self.equals(leader)) {
             Logger.log(Logger.EPOCH_CONSENSUS, "Ignoring propose event on non-leader process: " + self);
             return;
         }
         
-        // If val is null (⊥ in pseudocode), set it to the proposed value
         if (val == null) {
             val = value;
             Logger.log(Logger.EPOCH_CONSENSUS, "Leader " + self + " setting val to: " + value);
@@ -129,15 +113,12 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
         
         // Send READ message to all processes
         for (AuthenticatedPerfectLinks link : authenticatedLinks) {
-            // Create READ message
             Message readMessage = new Message("READ", "CMD_READ");
             link.alp2pSend(link.getDestinationEntity(), readMessage);
             Logger.log(Logger.EPOCH_CONSENSUS, 
                       "Leader sent READ message to " + link.getDestinationEntity());
         }
-        
-        // Trigger conditional collect to start collecting STATE messages
-        
+                
         // Create a STATE message with the leader's current state
         String writesetStr = serializeWriteset(writeSet);
         String payload = "STATE," + valts + "," + (val == null ? "null" : val) + "," + writesetStr;
@@ -147,13 +128,10 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
         conditionalCollect.input(stateMessage);
         
         Logger.log(Logger.EPOCH_CONSENSUS, "Leader triggered conditional collect for STATE messages");
-        
-        // Additional propose logic would go here in the future
     }
 
     /**
      * Process a state message and forward it to the leader if needed.
-     * The message payload is expected to be in the format "sender|x|y|z|"
      *
      * @param message The message containing the state
      */
@@ -161,7 +139,6 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
         String originalPayload = message.getPayload();
         System.out.println("Processing state message: " + originalPayload);
         
-        // Parse the payload to extract sender and actual state data
         String[] parts = originalPayload.split("\\|", 2);
         
         if (parts.length < 2) {
@@ -170,9 +147,8 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
         }
         
         String sender = parts[0];
-        String stateData = parts[1]; // This contains "x|y|z|" part
+        String stateData = parts[1]; 
         
-        // Create a new message with just the state data
         Message stateMessage = new Message(stateData, message.getCommand());
         
         if (this.isLeader) {
@@ -182,39 +158,7 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
             System.out.println("Not a leader, ignoring state from " + sender);
         }
     }
-    
-    /**
-     * Handles a READ message from the leader by sending back a STATE response.
-     * 
-     * @param sender The sender of the READ message
-     */
-    private void handleReadMessage(String sender) {
-        // Check that the sender is the leader
-        if (!sender.equals(leader)) {
-            return;
-        }
-        
-        // Create a STATE message with current state information
-        // Format: [STATE, valts, val, writeset]
-        
-        // Serialize the writeset
-        String writesetStr = serializeWriteset(writeSet);
-        
-        // Create a payload containing the state information
-        String payload = "STATE," + valts + "," + (val == null ? "null" : val) + "," + writesetStr;
-        
-        // Send STATE message back to the leader
-        for (AuthenticatedPerfectLinks link : authenticatedLinks) {
-            if (link.getDestinationEntity().equals(leader)) {
-                Message stateMessage = new Message(payload, "STATE");
-                link.alp2pSend(leader, stateMessage);
-                Logger.log(Logger.EPOCH_CONSENSUS, 
-                          "Process " + self + " sent STATE message to leader");
-                break;
-            }
-        }
-    }
-    
+          
     /**
      * Serializes the writeset for transmission.
      * 
@@ -243,34 +187,6 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
         }
         sb.append("]");
         return sb.toString();
-    }
-    
-    /**
-     * Validates the message.
-     * 
-     * @param messages Array of messages to check
-     * @return true if the predicate is satisfied
-     */
-    private boolean soundPredicate(Message[] messages) {
-        // Implementation of sound predicate goes here
-        // For now, this is a placeholder
-        
-        // In a real implementation, this would check if the messages satisfy
-        // the conditions for Byzantine consensus
-        return true;
-    }
-    
-    /**
-     * Callback method for when messages are collected by conditional collect.
-     * 
-     * @param messages The collected messages
-     */
-    private void onMessagesCollected(Message[] messages) {
-        // Handle collected messages
-        Logger.log(Logger.EPOCH_CONSENSUS, "Messages collected in ByzantineEpochConsensus");
-        
-        // Process the collected messages here
-        // This would implement the Byzantine consensus logic
     }
 }
     

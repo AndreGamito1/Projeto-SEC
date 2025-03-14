@@ -1,8 +1,8 @@
 package com.example;
 
 public class AuthenticatedMessage extends Message {
-    private String authString;  // Authentication string
-    private String messageID;   // Unique message ID
+    private String authString;  
+    private String messageID;  
     
     /**
      * Constructor that takes a Message object and an authString.
@@ -12,7 +12,7 @@ public class AuthenticatedMessage extends Message {
      * @param authString The authentication string
      */
     public AuthenticatedMessage(Message message, String authString) {
-        super(message.getPayload(), message.getCommand());  // Copy payload and command from the existing message
+        super(message.getPayload(), message.getCommand());  
         this.authString = authString;
         this.messageID = generateMessageID();
     }
@@ -26,7 +26,7 @@ public class AuthenticatedMessage extends Message {
      * @param messageID The message ID to use
      */
     public AuthenticatedMessage(Message message, String authString, String messageID) {
-        super(message.getPayload(), message.getCommand());  // Copy payload and command from the existing message
+        super(message.getPayload(), message.getCommand()); 
         this.authString = authString;
         this.messageID = messageID;
     }
@@ -80,7 +80,6 @@ public class AuthenticatedMessage extends Message {
     
     @Override
     public String toString() {
-        // Include authString and messageID in the string representation
         return super.toString() + ", authString=" + authString + ", messageID=" + messageID;
     }
 }

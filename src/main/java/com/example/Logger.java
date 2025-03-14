@@ -4,14 +4,13 @@ package com.example;
 * A logger that can be toggled on/off per level
 */
 public class Logger {
-   // Define your application layers as log levels
-   public static final int STUBBORN_LINKS = 0;  // Layer 0
-   public static final int AUTH_LINKS = 1;      // Layer 1
-   public static final int LEADER_ERRORS = 2;   // Layer 2
-   public static final int CLIENT_LIBRARY = 3;   // Layer 3
-   public static final int MEMBER = 4;   // Layer 4
-   public static final int CONDITIONAL_COLLECT = 5;   // Layer 5
-   public static final int EPOCH_CONSENSUS = 6;   // Layer 6
+   public static final int STUBBORN_LINKS = 0;          // Layer 0
+   public static final int AUTH_LINKS = 1;              // Layer 1
+   public static final int LEADER_ERRORS = 2;           // Layer 2
+   public static final int CLIENT_LIBRARY = 3;          // Layer 3
+   public static final int MEMBER = 4;                  // Layer 4
+   public static final int CONDITIONAL_COLLECT = 5;     // Layer 5
+   public static final int EPOCH_CONSENSUS = 6;         // Layer 6
    
    private static boolean[] enabledLevels = new boolean[]{true, true, true};
    
@@ -24,7 +23,6 @@ public class Logger {
     public static void initFromArgs(String logArg) {
         disableAll();
     
-        // Make sure the string starts with "--log="
         if (logArg.startsWith("--log=")) {
             String logValue = logArg.substring(6).toLowerCase();
     

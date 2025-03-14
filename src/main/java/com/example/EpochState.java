@@ -1,9 +1,6 @@
 package com.example;
 
 /**
- * Class representing epoch state with value, timestamp, and writeset.
- */
-/**
  * Class representing a timestamped value.
  */
 class TimestampValue {

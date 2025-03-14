@@ -22,8 +22,6 @@ import java.util.stream.Collectors;
 
 /**
  * Client library for interacting with the Byzantine consensus blockchain.
- * This class is designed to support multiple client instances with dynamic port allocation
- * and provides a REST API interface.
  */
 public class ClientLibrary {
     private String name = "clientLibrary";
@@ -35,7 +33,6 @@ public class ClientLibrary {
     private static final int PORT_RANGE = 1000;
     private HttpServer httpServer;
 
-    // Add KeyManager for cryptographic operations
     protected KeyManager keyManager;
     
     /**
@@ -56,7 +53,6 @@ public class ClientLibrary {
     public ClientLibrary(int clientPort) throws Exception {
         this(clientPort, clientPort + 1);
 
-        // Initialize the KeyManager
         keyManager = new KeyManager(this.name);
     }
     
@@ -68,12 +64,10 @@ public class ClientLibrary {
      * @throws Exception If initialization fails
      */
     public ClientLibrary(int clientPort, int httpPort) throws Exception {
-        // Load configuration from resources.json
         loadConfig();
         
         this.httpPort = httpPort;
         
-        // Create a link to the leader - using the correct leader port 6005
         String leaderIP = "127.0.0.1";
         
         System.out.println("Initiating link to leader at " + leaderIP + ":" + leaderPort + " from port " + this.port);
@@ -82,7 +76,6 @@ public class ClientLibrary {
         Logger.log(Logger.CLIENT_LIBRARY, "Initialized client library on port " + port);
         Logger.log(Logger.CLIENT_LIBRARY, "Connected to leader on port " + leaderPort);
         
-        // Initialize REST API server
         initializeRestApi();
     }
     /**
@@ -93,11 +86,9 @@ public class ClientLibrary {
     private void initializeRestApi() throws IOException {
         httpServer = HttpServer.create(new InetSocketAddress(httpPort), 0);
         
-        // Define context handlers for our API endpoints
         httpServer.createContext("/blockchain/append", new AppendHandler());
         httpServer.createContext("/blockchain/get", new GetHandler());
         
-        // Create a thread pool for handling requests
         httpServer.setExecutor(Executors.newFixedThreadPool(10));
         httpServer.start();
         
@@ -122,19 +113,16 @@ public class ClientLibrary {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             try {
-                // Only accept POST requests
                 if (!exchange.getRequestMethod().equals("POST")) {
                     String response = "{\"error\":\"Method not allowed\"}";
                     sendResponse(exchange, 405, response);
                     return;
                 }
                 
-                // Read the request body
                 InputStream inputStream = exchange.getRequestBody();
                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
                 String requestBody = reader.lines().collect(Collectors.joining());
                 
-                // Parse the request body as JSON
                 JSONObject requestJson = new JSONObject(requestBody);
                 String data = requestJson.optString("data", "");
                 
@@ -144,10 +132,8 @@ public class ClientLibrary {
                     return;
                 }
                 
-                // Append the data to the blockchain
                 boolean success = appendToBlockchain(data);
                 
-                // Send the response
                 String response = "{\"success\":" + success + "}";
                 sendResponse(exchange, 200, response);
                 
@@ -165,17 +151,14 @@ public class ClientLibrary {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             try {
-                // Only accept GET requests
                 if (!exchange.getRequestMethod().equals("GET")) {
                     String response = "{\"error\":\"Method not allowed\"}";
                     sendResponse(exchange, 405, response);
                     return;
                 }
                 
-                // Get the blockchain
                 String blockchain = getBlockchain();
                 
-                // Send the response
                 String response = "{\"blockchain\":" + JSONObject.quote(blockchain) + "}";
                 sendResponse(exchange, 200, response);
                 
@@ -204,7 +187,6 @@ public class ClientLibrary {
      * @return A likely unused port number
      */
     private static int allocateDynamicPort() {
-        // Generate a random port in a reasonable range
         Random random = new Random();
         return BASE_PORT + random.nextInt(PORT_RANGE);
     }
@@ -225,10 +207,7 @@ public class ClientLibrary {
         
         JSONObject clientJson = json.getJSONObject(name);
         this.port = Integer.parseInt(clientJson.getString("memberPort"));
-        this.leaderPort = this.port + 1000;
-        
-        // Leader port is at BASE_PORT (5000)
-        
+        this.leaderPort = this.port + 1000;        
     }
 
     /**
@@ -251,22 +230,17 @@ public class ClientLibrary {
      * @throws Exception If getting fails
      */
     public String getBlockchain() throws Exception {
-        // Clear any old messages before sending the request
         leaderLink.clearReceivedMessages();
         
-        // Send the request
         sendToLeader("", "GET_BLOCKCHAIN");
         Logger.log(Logger.CLIENT_LIBRARY, "Sent get blockchain request");
         
-        // Wait for response with timeout
         final int MAX_RETRIES = 5;
         final int RETRY_DELAY_MS = 1000;
         
         for (int retry = 0; retry < MAX_RETRIES; retry++) {
-            // Wait between checks
             Thread.sleep(RETRY_DELAY_MS);
             
-            // Get the response
             List<AuthenticatedMessage> messages = leaderLink.getReceivedMessages();
             for (AuthenticatedMessage authMsg : messages) {
                 Message message = authMsg;
@@ -276,7 +250,6 @@ public class ClientLibrary {
                 }
             }
             
-            // Log that we're still waiting
             if (retry < MAX_RETRIES - 1) {
                 Logger.log(Logger.CLIENT_LIBRARY, "No response yet, retrying...");
             }
@@ -335,20 +308,17 @@ public class ClientLibrary {
         try {
             ClientLibrary library;
             
-            // Start with specified ports if provided
             if (args.length >= 2) {
                 int clientPort = Integer.parseInt(args[0]);
                 int httpPort = Integer.parseInt(args[1]);
                 library = new ClientLibrary(clientPort, httpPort);
                 System.out.println("Started ClientLibrary with specified ports:");
             }
-            // Start with only client port if provided
             else if (args.length == 1) {
                 int clientPort = Integer.parseInt(args[0]);
                 library = new ClientLibrary(clientPort);
                 System.out.println("Started ClientLibrary with specified client port:");
             }
-            // Start with default port allocation
             else {
                 library = new ClientLibrary();
                 System.out.println("Started ClientLibrary with automatic port allocation:");
@@ -358,7 +328,6 @@ public class ClientLibrary {
             System.out.println("- REST API: http://localhost:" + library.getHttpPort() + "/blockchain/");
             System.out.println("Press Ctrl+C to stop");
             
-            // Keep the program running until terminated
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 System.out.println("Shutting down ClientLibrary...");
                 library.stopRestApi();

@@ -9,7 +9,6 @@ import org.json.JSONObject;
 
 /**
  * Client class that uses the REST API to interact with the blockchain.
- * This is a modified version of the original Client class to work with the REST API.
  */
 public class Client {
     private final String clientId;
@@ -35,15 +34,12 @@ public class Client {
     public Client(String clientId, String baseUrl) {
         this.clientId = clientId;
         
-        // Ensure baseUrl doesn't end with a slash
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         
-        // Create HTTP client with timeout
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
         
-        // Calculate a port based on client ID to maintain compatibility with original code
         this.clientPort = 10000 + Math.abs(clientId.hashCode() % 10000);
         
         System.out.println("Blockchain client initialized with ID: " + clientId);
@@ -60,7 +56,7 @@ public class Client {
     }
     
     /**
-     * Gets the client's port (for compatibility with original code).
+     * Gets the client's port.
      * 
      * @return The port number
      */
@@ -76,25 +72,20 @@ public class Client {
      * @throws Exception If the operation fails
      */
     public boolean appendToBlockchain(String data) throws Exception {
-        // Format the data with client ID prefix
         String formattedData = String.format("[%s] %s", clientId, data);
         
-        // Create the request body
         JSONObject requestBody = new JSONObject();
         requestBody.put("data", formattedData);
         
         try {
-            // Create the HTTP request
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + "/blockchain/append"))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
                     .build();
             
-            // Send the request
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             
-            // Check if the request was successful
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 JSONObject jsonResponse = new JSONObject(response.body());
                 return jsonResponse.optBoolean("success", false);
@@ -104,7 +95,6 @@ public class Client {
             }
         } catch (Exception e) {
             System.err.println("Connection error: " + e.getMessage());
-            // Provide a more user-friendly error message
             return false;
         }
     }
@@ -117,16 +107,13 @@ public class Client {
      */
     public String getBlockchain() throws Exception {
         try {
-            // Create the HTTP request
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + "/blockchain/get"))
                     .GET()
                     .build();
             
-            // Send the request
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             
-            // Check if the request was successful
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 JSONObject jsonResponse = new JSONObject(response.body());
                 return jsonResponse.optString("blockchain", "No blockchain data received");
@@ -167,10 +154,8 @@ public class Client {
         try {
             System.out.println("Initializing client: " + clientId);
             
-            // Create a client
             Client client = new Client(clientId);
             
-            // Run the client interface
             runClientInterface(client);
             
         } catch (Exception e) {
