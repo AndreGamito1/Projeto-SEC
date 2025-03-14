@@ -348,13 +348,42 @@ public boolean receiveWrite(AuthenticatedMessage message) {
        
         Message acceptMessage = new Message(quorumPayload, "CMD_ACCEPT");
 
-        this.accepted = true;
 
         protocolMessages = new Hashtable<>();
                 
         for (AuthenticatedPerfectLinks link : links) {
             link.alp2pSend(link.getDestinationEntity(), acceptMessage);
             System.out.println("----------------- Sent CMD_ACCEPT message to member: " + link.getDestinationEntity() + " -----------------");
+            return true;
+        }
+
+    }
+    return false;
+}
+
+public boolean receiveAccept(AuthenticatedMessage message) {
+    System.out.println("------------- Receiving ACCEPT ---------------");
+   
+    String messageId = message.getMessageID(); 
+    protocolMessages.put(messageId, message);
+   
+    Map<String, Object> quorumResult = checkQuorum(protocolMessages);
+   
+    if ((Boolean)quorumResult.get("quorumFound")) {
+        String quorumPayload = (String)quorumResult.get("payload");
+        List<String> quorumProcesses = (List<String>)quorumResult.get("processes");
+       
+        System.out.println("Quorum established by processes: " + quorumProcesses);
+       
+        Message acceptMessage = new Message(quorumPayload, "CMD_DECIDE");
+
+        this.accepted = true;
+
+        protocolMessages = new Hashtable<>();
+                
+        for (AuthenticatedPerfectLinks link : links) {
+            link.alp2pSend(link.getDestinationEntity(), acceptMessage);
+            System.out.println("----------------- Sent CMD_decide message to member: " + link.getDestinationEntity() + " -----------------");
             return true;
         }
 
@@ -418,48 +447,14 @@ private Map<String, Object> checkQuorum(Dictionary<String, Message> messageDict)
     result.put("processes", quorumProcesses);
     return result;
 }
-    /**
-     * Deserialize messages from JSON.
-     * 
-     * @param json The JSON string
-     * @return Map of process IDs to messages
-     */
-    private Map<String, Message> deserializeMessages(String json) {
-        Map<String, Message> result = new HashMap<>();
-        
-        if (json.startsWith("{") && json.endsWith("}")) {
-            String content = json.substring(1, json.length() - 1);
-            
-            String[] entries = content.split(",(?=\")");
-            
-            for (String entry : entries) {
-                int idStart = entry.indexOf("\"") + 1;
-                int idEnd = entry.indexOf("\"", idStart);
-                
-                if (idStart > 0 && idEnd > idStart) {
-                    String processId = entry.substring(idStart, idEnd);
-                    
-                    if (entry.contains(":null")) {
-                        result.put(processId, null);
-                    } else {
-                        int payloadStart = entry.indexOf("\"payload\":\"") + 11;
-                        int payloadEnd = entry.indexOf("\"", payloadStart);
-                        int commandStart = entry.indexOf("\"command\":\"") + 11;
-                        int commandEnd = entry.indexOf("\"", commandStart);
-                        
-                        if (payloadStart > 10 && commandStart > 10) {
-                            String payload = entry.substring(payloadStart, payloadEnd);
-                            String command = entry.substring(commandStart, commandEnd);
-                            result.put(processId, new Message(payload, command));
-                        }
-                    }
-                }
-            }
-        }
-        
-        return result;
-    }
 
+
+    public void reset() {
+        this.accepted = false;
+        this.collected = false;
+        this.messages = new Hashtable<>();
+        this.protocolMessages = new Hashtable<>();
+    }
 
     /**
      * Serialize messages to JSON.

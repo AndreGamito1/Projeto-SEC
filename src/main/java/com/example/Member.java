@@ -223,6 +223,7 @@ public class Member {
                     break;
 
                 case CMD_ACCEPT:
+                    handleAcceptRequest(authMessage);
                     break;
                     
                 case CMD_PROPOSE:
@@ -232,6 +233,7 @@ public class Member {
                     break;
                     
                 case CMD_DECIDE:
+                    handleDecide(authMessage);
                     break;
     
                 case CMD_COLLECTED:
@@ -313,6 +315,16 @@ public class Member {
 
         if (conditionalCollect.receiveWrite(message)) {
             System.out.println("Received enough writes to proceed to consensus");
+            return;
+        };
+        return;
+    }
+
+    private void handleAcceptRequest(AuthenticatedMessage message) throws Exception {
+        System.out.println("Received WRITE request");
+
+        if (conditionalCollect.receiveAccept(message)) {
+            System.out.println("Received enough accepts to proceed to consensus");
 
             System.out.println("Current blockchain: " + blockchain);
             blockchain.add(message.getPayload());
@@ -320,6 +332,12 @@ public class Member {
             return;
         };
         return;
+    }
+
+
+    private void handleDecide(AuthenticatedMessage message) throws Exception {
+        System.out.println("Received DECIDE request");
+        conditionalCollect.reset();
     }
 
     /**
