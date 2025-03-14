@@ -2,12 +2,15 @@ package com.example;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.Dictionary;
+import java.util.Enumeration;
 
 /**
  * Interface for a message collection predicate.
@@ -27,34 +30,33 @@ interface ConditionalCollectCallback {
 
 /**
  * ConditionalCollect implementation based on the pseudocode:
- * A distributed protocol that collects messages from processes in a system
- * and outputs them when certain conditions are met.
+ * A distributed protocol that collects states from processes in a system
+ * and outputs them when a Byzantine quorum of equal states are received.
  */
 public class ConditionalCollect {
     private final String self;
     private final String leader;
     private final boolean isLeader;
-    private final int N; // Total number of processes
+    private final int N;
     private final int f; // Max number of process failures
-    private final CollectionPredicate collectionCondition;
     private final AuthenticatedPerfectLinks[] links;
     private final ConditionalCollectCallback callback;
     
     // State variables
-    private Message[] messages;
+    private Dictionary<String, Message> messages;
     private String[] signatures;
     private boolean collected;
+    private List<Message> states; // Vector to collect states from all processes
     
     // Constants for message commands
     private static final String CMD_SEND = "SEND";
-    private static final String CMD_COLLECTED = "COLLECTED";
+    private static final String CMD_COLLECTED = "CMD_COLLECTED";
     
     /**
      * Constructor for ConditionalCollect.
      * 
      * @param self The identifier of this process
      * @param leader The identifier of the leader process
-     * @param n Total number of processes
      * @param f Maximum number of process failures
      * @param condition The condition predicate for collection
      * @param perfectLinks Array of authenticated perfect links to all processes
@@ -63,20 +65,19 @@ public class ConditionalCollect {
     public ConditionalCollect(
             String self, 
             String leader, 
-            int n, 
-            int f, 
-            CollectionPredicate condition,
+            int f,
+            int N,
             AuthenticatedPerfectLinks[] perfectLinks,
             ConditionalCollectCallback callback) {
         
         this.self = self;
         this.leader = leader;
         this.isLeader = self.equals(leader);
-        this.N = n;
         this.f = f;
-        this.collectionCondition = condition;
+        this.N = N;
         this.links = perfectLinks;
         this.callback = callback;
+        this.messages = new Hashtable<>();
         
         // Initialize state
         init();
@@ -86,87 +87,126 @@ public class ConditionalCollect {
      * Initialize the state variables.
      */
     public void init() {
-        this.messages = new Message[N];
         this.signatures = new String[N];
         this.collected = false;
-        
-        // Initialize arrays
-        for (int i = 0; i < N; i++) {
-            messages[i] = null; // UNDEFINED in pseudocode
-            signatures[i] = null; // ⊥ in pseudocode
-        }
+        this.states = new ArrayList<>();
         
         Logger.log(Logger.CONDITIONAL_COLLECT, "ConditionalCollect initialized. Self: " + self + ", Leader: " + leader);
     }
     
     /**
-     * Input event handler - submits a message to the collection.
+     * Input event handler - submits a state to the collection.
      * 
-     * @param message The message to input
+     * @param message The message containing a state to input
      */
     public void input(Message message) {
-        // Sign the message
-        String signature = sign(self, "cc", self, "INPUT", message.getPayload());
-        
-        // Find the link to the leader and send the message
-        for (AuthenticatedPerfectLinks link : links) {
-            if (link.getDestinationEntity().equals(leader)) {
-                Message sendMessage = new Message(message.getPayload(), CMD_SEND);
-                link.alp2pSend(leader, sendMessage);
-                
-                Logger.log(Logger.CONDITIONAL_COLLECT, 
-                          "Input: Sent message to leader " + leader + ": " + message.getPayload());
-                break;
-            }
-        }
-
+        // Add the state to our vector
+        System.out.println("inputing message: " + message.getPayload());
+        System.out.println(message);
+        System.out.println(this.self);
+        messages.put(this.self, message);
     }
     
     /**
-     * Check if the collection condition is met and broadcast if it is.
+     * Method to handle received state messages from other processes.
+     * 
+     * @param sourceProcess The process that sent the state
+     * @param message The message containing the state
+     */
+    public void receiveState(String sourceProcess, Message message) {
+        if (!isLeader) {
+            return;
+        }
+            messages.put(sourceProcess, message);
+            
+            Logger.log(Logger.CONDITIONAL_COLLECT, 
+                      "Received state from " + sourceProcess + ": " + message.getPayload());
+            
+            // Check if we have enough equal states
+            checkCollectionCondition();
+        }
+    
+    
+    
+    /**
+     * Check if a Byzantine quorum of equal states have been received and broadcast if it is.
+     * For Byzantine consensus with N = 4, a quorum needs at least N - f states to be equal
+     * where f is the maximum number of byzantine failures.
      */
     public void checkCollectionCondition() {
         if (!isLeader) {
             return;
         }
+        System.out.println("------------- Checking Collection Condition ---------------");
         
-        // Count non-null messages
-        int count = 0;
-        for (Message m : messages) {
-            if (m != null) {
-                count++;
+        // Count message occurrences to find if there's a Byzantine quorum
+        Map<String, Integer> stateOccurrences = new HashMap<>();
+        
+        // Iterate through the Dictionary entries
+        Enumeration<String> keys = messages.keys();
+        while (keys.hasMoreElements()) {
+            String processId = keys.nextElement();
+            Message message = messages.get(processId);
+            
+            if (message != null) {
+                String statePayload = message.getPayload();
+                stateOccurrences.put(statePayload, stateOccurrences.getOrDefault(statePayload, 0) + 1);
             }
         }
         
-        // Check if we have enough messages and the condition is satisfied
-        if (count >= N - f && collectionCondition.test(messages)) {
-            // Convert messages and signatures to serializable format
-            String messagesJson = serializeMessages(messages);
+        // Byzantine quorum needs at least (N+f)/2 + 1 equal states where f = (N-1)/3
+        // For N = 4, a quorum needs at least (N+1)/2 = 3 equal states (majority)
+        int quorumSize = (N + 1) / 2;
+        
+        // Check if any state has reached the quorum
+        String quorumState = null;
+        for (Map.Entry<String, Integer> entry : stateOccurrences.entrySet()) {
+            if (entry.getValue() >= quorumSize) {
+                quorumState = entry.getKey();
+                break;
+            }
+        }
+        
+        // If a quorum is found, broadcast the collected messages
+        if (quorumState != null) {
+            // Create a Map to hold messages that match the quorum state
+            Map<String, Message> quorumMessages = new HashMap<>();
             
-            // Create a COLLECTED message with the collected messages and signatures
+            // Collect all messages that match the quorum state
+            keys = messages.keys();
+            while (keys.hasMoreElements()) {
+                String processId = keys.nextElement();
+                Message message = messages.get(processId);
+                
+                if (message != null && message.getPayload().equals(quorumState)) {
+                    quorumMessages.put(processId, message);
+                }
+            }
+            
+            // Convert messages to serializable format
+            String messagesJson = serializeMessages(quorumMessages);
+            
+            // Create a COLLECTED message with the collected messages
             Message collectedMessage = new Message(messagesJson, CMD_COLLECTED);
             
             // Send COLLECTED message to all processes
             for (AuthenticatedPerfectLinks link : links) {
                 link.alp2pSend(link.getDestinationEntity(), collectedMessage);
-                Logger.log(Logger.CONDITIONAL_COLLECT, 
-                          "Leader sent COLLECTED message to " + link.getDestinationEntity());
-            }
+
+                System.out.println("----------------- Sent COLLECTED message to member: " + link.getDestinationEntity() + " -----------------");
             
             // Reset state
-            for (int i = 0; i < N; i++) {
-                messages[i] = null;
-                signatures[i] = null;
-            }
+            init();
         }
     }
-    
+    }
+
     /**
      * Process a COLLECTED message.
-     * 
+     *
      * @param message The message containing the collected messages
      */
-    private void processCollectedMessage(Message message) {
+    public void processCollectedMessage(Message message) {
         if (collected) {
             return; // Already collected
         }
@@ -174,106 +214,122 @@ public class ConditionalCollect {
         try {
             // Deserialize messages
             String messagesJson = message.getPayload();
-            Message[] collectedMessages = deserializeMessages(messagesJson);
+            Map<String, Message> collectedMessages = deserializeMessages(messagesJson);
             
-            // Count non-null messages
-            int count = 0;
-            for (Message m : collectedMessages) {
+            // Count message occurrences to verify the Byzantine quorum
+            Map<String, Integer> stateOccurrences = new HashMap<>();
+            int nonNullCount = 0;
+            
+            // Track the leader's message specifically
+            Message leaderMessage = collectedMessages.get(leader);
+            
+            for (Map.Entry<String, Message> entry : collectedMessages.entrySet()) {
+                Message m = entry.getValue();
                 if (m != null) {
-                    count++;
+                    nonNullCount++;
+                    String statePayload = m.getPayload();
+                    stateOccurrences.put(statePayload, stateOccurrences.getOrDefault(statePayload, 0) + 1);
                 }
             }
             
-            // Check conditions
-            if (count >= N - f && collectionCondition.test(collectedMessages)) {
-                collected = true;
-                Logger.log(Logger.CONDITIONAL_COLLECT, "Messages collected successfully");
-                
-                // Trigger the callback with the collected messages
-                if (callback != null) {
-                    callback.onCollected(collectedMessages);
+            // Byzantine quorum needs majority for N = 4
+            int quorumSize = (N + 1) / 2;
+            boolean hasQuorum = false;
+            String quorumState = null;
+            
+            for (Map.Entry<String, Integer> entry : stateOccurrences.entrySet()) {
+                if (entry.getValue() >= quorumSize) {
+                    hasQuorum = true;
+                    quorumState = entry.getKey();
+                    break;
                 }
+            }
+            
+            // Check if we have a quorum or should adopt leader's value
+            if (nonNullCount >= N - f) {
+                if (hasQuorum) {
+                    // Case 1: Byzantine quorum established
+                    collected = true;
+                    Logger.log(Logger.CONDITIONAL_COLLECT, "Byzantine quorum of equal states collected successfully");
+                    
+                    // Convert the map back to an array for compatibility with the callback
+                    Message[] messageArray = mapToArray(collectedMessages, quorumState);
+                    
+                    // Trigger the callback with the collected messages
+                    if (callback != null) {
+                        callback.onCollected(messageArray);
+                    }
+                } else if (leaderMessage != null) {
+                    // Case 2: No quorum, but leader has a valid state - adopt leader's value
+                    collected = true;
+                    Logger.log(Logger.CONDITIONAL_COLLECT, 
+                            "No quorum established, adopting leader's state: " + leaderMessage.getPayload());
+                    
+                    // Create a message array with all processes adopting the leader's value
+                    Message[] adoptedMessages = new Message[N];
+                    for (int i = 0; i < N; i++) {
+                        adoptedMessages[i] = new Message(leaderMessage.getPayload(), leaderMessage.getCommand());
+                    }
+                    
+                    // Trigger the callback with the updated messages
+                    if (callback != null) {
+                        callback.onCollected(adoptedMessages);
+                    }
+                } else {
+                    Logger.log(Logger.CONDITIONAL_COLLECT, 
+                            "No quorum established and no valid leader state available");
+                }
+            } else {
+                Logger.log(Logger.CONDITIONAL_COLLECT, 
+                        "Not enough messages received to establish collection");
             }
         } catch (Exception e) {
-            Logger.log(Logger.CONDITIONAL_COLLECT, 
-                      "Error processing COLLECTED message: " + e.getMessage());
+            Logger.log(Logger.CONDITIONAL_COLLECT,
+                    "Error processing COLLECTED message: " + e.getMessage());
             e.printStackTrace();
         }
     }
-    
-    /**
-     * Sign a message.
-     * In a real implementation, this would use a cryptographic signature.
-     * 
-     * @param signer The signer
-     * @param params The parameters to sign
-     * @return The signature
-     */
-    private String sign(String signer, Object... params) {
-        StringBuilder sb = new StringBuilder();
-        for (Object param : params) {
-            sb.append(param).append("||");
-        }
-        String content = sb.toString();
-        
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest((signer + content).getBytes());
-            return Base64.getEncoder().encodeToString(hash);
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-    
-    private String serializeMessages(Message[] messages) {
-        // In a real implementation, this would use proper JSON serialization
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < messages.length; i++) {
-            if (messages[i] == null) {
-                sb.append("null");
-            } else {
-                sb.append("{\"payload\":\"").append(messages[i].getPayload())
-                  .append("\",\"command\":\"").append(messages[i].getCommand())
-                  .append("\",\"messageID\":\"").append(messages[i].getMessageID()).append("\"}");
-            }
-            if (i < messages.length - 1) {
-                sb.append(",");
-            }
-        }
-        sb.append("]");
-        return sb.toString();
-    }
-    
+
     /**
      * Deserialize messages from JSON.
      * 
      * @param json The JSON string
-     * @return Array of messages
+     * @return Map of process IDs to messages
      */
-    private Message[] deserializeMessages(String json) {
-        // In a real implementation, this would use proper JSON deserialization
-        // This is a simplified version for demonstration
-        Message[] result = new Message[N];
+    private Map<String, Message> deserializeMessages(String json) {
+        Map<String, Message> result = new HashMap<>();
         
         // Simple parsing - in a real implementation use a JSON library
-        if (json.startsWith("[") && json.endsWith("]")) {
-            String[] parts = json.substring(1, json.length() - 1).split(",(?=\\{|null)");
-            for (int i = 0; i < Math.min(parts.length, N); i++) {
-                if (parts[i].equals("null")) {
-                    result[i] = null;
-                } else {
-                    // Extract payload and command - very simplified parsing
-                    String part = parts[i];
-                    int payloadStart = part.indexOf("\"payload\":\"") + 11;
-                    int payloadEnd = part.indexOf("\"", payloadStart);
-                    int commandStart = part.indexOf("\"command\":\"") + 11;
-                    int commandEnd = part.indexOf("\"", commandStart);
+        if (json.startsWith("{") && json.endsWith("}")) {
+            // Remove the outer braces
+            String content = json.substring(1, json.length() - 1);
+            
+            // Split by commas that are followed by a quoted process ID
+            String[] entries = content.split(",(?=\")");
+            
+            for (String entry : entries) {
+                // Find the process ID
+                int idStart = entry.indexOf("\"") + 1;
+                int idEnd = entry.indexOf("\"", idStart);
+                
+                if (idStart > 0 && idEnd > idStart) {
+                    String processId = entry.substring(idStart, idEnd);
                     
-                    if (payloadStart > 10 && commandStart > 10) {
-                        String payload = part.substring(payloadStart, payloadEnd);
-                        String command = part.substring(commandStart, commandEnd);
-                        result[i] = new Message(payload, command);
+                    // Check if this is a null entry
+                    if (entry.contains(":null")) {
+                        result.put(processId, null);
+                    } else {
+                        // Extract message parts
+                        int payloadStart = entry.indexOf("\"payload\":\"") + 11;
+                        int payloadEnd = entry.indexOf("\"", payloadStart);
+                        int commandStart = entry.indexOf("\"command\":\"") + 11;
+                        int commandEnd = entry.indexOf("\"", commandStart);
+                        
+                        if (payloadStart > 10 && commandStart > 10) {
+                            String payload = entry.substring(payloadStart, payloadEnd);
+                            String command = entry.substring(commandStart, commandEnd);
+                            result.put(processId, new Message(payload, command));
+                        }
                     }
                 }
             }
@@ -282,4 +338,72 @@ public class ConditionalCollect {
         return result;
     }
 
+    /**
+     * Convert a map of messages to an array, filtering for a specific state if needed.
+     * 
+     * @param messageMap The map of process IDs to messages
+     * @param filterState Optional state to filter for (null to include all)
+     * @return Array of messages
+     */
+    private Message[] mapToArray(Map<String, Message> messageMap, String filterState) {
+        Message[] result = new Message[N];
+        
+        // This assumes process IDs can be mapped to indices 0..N-1
+        // In a real implementation, you might need a more sophisticated mapping
+        for (Map.Entry<String, Message> entry : messageMap.entrySet()) {
+            String processId = entry.getKey();
+            Message message = entry.getValue();
+            
+            // Only include the message if it matches the filter state or no filter is applied
+            if (message != null && (filterState == null || message.getPayload().equals(filterState))) {
+                try {
+                    int index = Integer.parseInt(processId);
+                    if (index >= 0 && index < N) {
+                        result[index] = message;
+                    }
+                } catch (NumberFormatException e) {
+                    // If process IDs aren't numeric, you might need a different approach
+                    // For now, just log the issue
+                    Logger.log(Logger.CONDITIONAL_COLLECT, 
+                            "Could not convert process ID to index: " + processId);
+                }
+            }
+        }
+        
+        return result;
+    }
+    /**
+     * Serialize messages to JSON.
+     * 
+     * @param messages Map of processId to messages
+     * @return JSON string representation
+     */
+    private String serializeMessages(Map<String, Message> messages) {
+        // In a real implementation, this would use proper JSON serialization
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        
+        for (Map.Entry<String, Message> entry : messages.entrySet()) {
+            if (!first) {
+                sb.append(",");
+            }
+            first = false;
+            
+            String processId = entry.getKey();
+            Message message = entry.getValue();
+            
+            sb.append("\"").append(processId).append("\":");
+            
+            if (message == null) {
+                sb.append("null");
+            } else {
+                sb.append("{\"payload\":\"").append(message.getPayload())
+                .append("\",\"command\":\"").append(message.getCommand())
+                .append("\",\"messageID\":\"").append(message.getMessageID()).append("\"}");
+            }
+        }
+        
+        sb.append("}");
+        return sb.toString();
+    }
 }

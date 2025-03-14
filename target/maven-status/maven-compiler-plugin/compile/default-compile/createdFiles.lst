@@ -13,10 +13,8 @@ com\example\Logger.class
 com\example\MessageCallback.class
 com\example\AuthenticatedPerfectLinks.class
 com\example\ByzantineEpochConsensus.class
-com\example\EpochConsensus$EpochState.class
 com\example\ByzantineEpochConsensusInterface.class
 com\example\ClientLibrary$AppendHandler.class
 com\example\Leader.class
 com\example\ConditionalCollectCallback.class
-com\example\EpochConsensus.class
 com\example\EpochState.class

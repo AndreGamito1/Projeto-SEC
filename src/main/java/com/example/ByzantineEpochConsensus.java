@@ -19,10 +19,11 @@ interface ByzantineEpochConsensusInterface {
 public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface {
     // Instance identifier
     private final String self;
-    private final String leader;
+    private final boolean isLeader;
     private final int N; // Total number of processes
     private final int f; // Max number of process failures
     private final long epochTimestamp;
+    private final String leader;
     
     // Components
     private final AuthenticatedPerfectLinks[] authenticatedLinks;
@@ -47,18 +48,20 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
      */
     public ByzantineEpochConsensus(
             String self,
-            String leader,
+            boolean isLeader,
             int n,
             int f,
             int epochTimestamp,
-            AuthenticatedPerfectLinks[] authenticatedLinks) {
+            AuthenticatedPerfectLinks[] authenticatedLinks
+            ) {
         
         this.self = self;
-        this.leader = leader;
         this.N = n;
         this.f = f;
         this.epochTimestamp = epochTimestamp;
         this.authenticatedLinks = authenticatedLinks;
+        this.isLeader = isLeader;
+        this.leader = "leader";
         
         // Initialize conditional collect with sound predicate
         this.conditionalCollect = new ConditionalCollect(
@@ -66,7 +69,6 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
             leader,
             n,
             f,
-            this::soundPredicate,  // Using method reference for sound predicate
             authenticatedLinks,
             this::onMessagesCollected  // Callback for collected messages
         );
@@ -150,11 +152,36 @@ public class ByzantineEpochConsensus implements ByzantineEpochConsensusInterface
         // Additional propose logic would go here in the future
     }
 
-    public void processState(Message message){
-        System.out.println("Processing state message");
-        System.out.println(message);
-        conditionalCollect.input(message);
-        conditionalCollect.checkCollectionCondition();
+    /**
+     * Process a state message and forward it to the leader if needed.
+     * The message payload is expected to be in the format "sender|x|y|z|"
+     *
+     * @param message The message containing the state
+     */
+    public void processState(Message message) {
+        String originalPayload = message.getPayload();
+        System.out.println("Processing state message: " + originalPayload);
+        
+        // Parse the payload to extract sender and actual state data
+        String[] parts = originalPayload.split("\\|", 2);
+        
+        if (parts.length < 2) {
+            System.out.println("Invalid message format: " + originalPayload);
+            return;
+        }
+        
+        String sender = parts[0];
+        String stateData = parts[1]; // This contains "x|y|z|" part
+        
+        // Create a new message with just the state data
+        Message stateMessage = new Message(stateData, message.getCommand());
+        
+        if (this.isLeader) {
+            System.out.println("Leader processing state message from " + sender + ": " + stateData);
+            conditionalCollect.receiveState(sender, stateMessage);
+        } else {
+            System.out.println("Not a leader, ignoring state from " + sender);
+        }
     }
     
     /**
