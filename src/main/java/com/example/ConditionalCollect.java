@@ -51,6 +51,7 @@ public class ConditionalCollect {
     // Constants for message commands
     private static final String CMD_SEND = "SEND";
     private static final String CMD_COLLECTED = "CMD_COLLECTED";
+    private static final String CMD_WRITE = "CMD_WRITE";
     
     /**
      * Constructor for ConditionalCollect.
@@ -184,7 +185,10 @@ public class ConditionalCollect {
             }
             
             // Convert messages to serializable format
+            System.out.println("Serializing messages:" + quorumMessages);
+
             String messagesJson = serializeMessages(quorumMessages);
+            System.out.println("Serialized messages:" + messagesJson);
             
             // Create a COLLECTED message with the collected messages
             Message collectedMessage = new Message(messagesJson, CMD_COLLECTED);
@@ -201,94 +205,127 @@ public class ConditionalCollect {
     }
     }
 
-    /**
-     * Process a COLLECTED message.
-     *
-     * @param message The message containing the collected messages
-     */
-    public void processCollectedMessage(Message message) {
-        if (collected) {
-            return; // Already collected
+
+/**
+ * Process a COLLECTED message.
+ * Checks for a quorum of identical messages or falls back to the leader's value.
+ * If either condition is met, broadcasts a WRITE message with the adopted value.
+ *
+ * @param message The message containing the collected messages
+ */
+public void processCollected(Message message) {
+    if (collected) {
+        return; // Already collected
+    }
+    System.out.println("----------------- Processing COLLECTED message -----------------");
+    try {
+        // Get the payload as a string
+        String strPayload = message.getPayload();
+        System.out.println("Received payload: " + strPayload);
+        
+        // Try to extract messages from the string
+        Map<String, Message> collectedMessages = new HashMap<>();
+        
+        // Extract the leader's message
+        // Format is: {"leader":{"payload":"STATE,0,[Client1] eren, ","command":"STATE","messageID":"93c5a687-5675-4b7f-8817-83515ee1afef"}}
+        if (strPayload.contains("\"leader\":{")) {
+            int payloadStart = strPayload.indexOf("\"payload\":\"") + "\"payload\":\"".length();
+            int payloadEnd = strPayload.indexOf("\"", payloadStart);
+            
+            int commandStart = strPayload.indexOf("\"command\":\"") + "\"command\":\"".length();
+            int commandEnd = strPayload.indexOf("\"", commandStart);
+            
+            if (payloadStart > 0 && payloadEnd > payloadStart && 
+                commandStart > 0 && commandEnd > commandStart) {
+                
+                String leaderPayload = strPayload.substring(payloadStart, payloadEnd);
+                String leaderCommand = strPayload.substring(commandStart, commandEnd);
+                
+                Message leaderMessage = new Message(leaderPayload, leaderCommand);
+                collectedMessages.put("leader", leaderMessage);
+                
+                // Also add it under the leader ID for quorum checking
+                collectedMessages.put(leader, leaderMessage);
+                
+                System.out.println("Extracted leader message with payload: " + leaderPayload);
+            }
         }
         
-        try {
-            // Deserialize messages
-            String messagesJson = message.getPayload();
-            Map<String, Message> collectedMessages = deserializeMessages(messagesJson);
-            
-            // Count message occurrences to verify the Byzantine quorum
-            Map<String, Integer> stateOccurrences = new HashMap<>();
-            int nonNullCount = 0;
-            
-            // Track the leader's message specifically
-            Message leaderMessage = collectedMessages.get(leader);
-            
-            for (Map.Entry<String, Message> entry : collectedMessages.entrySet()) {
-                Message m = entry.getValue();
-                if (m != null) {
-                    nonNullCount++;
-                    String statePayload = m.getPayload();
-                    stateOccurrences.put(statePayload, stateOccurrences.getOrDefault(statePayload, 0) + 1);
-                }
+        // Count message occurrences to verify the Byzantine quorum
+        Map<String, Integer> stateOccurrences = new HashMap<>();
+        int nonNullCount = 0;
+        
+        // Track the leader's message specifically
+        Message leaderMessage = collectedMessages.get(leader);
+        
+        for (Map.Entry<String, Message> entry : collectedMessages.entrySet()) {
+            Message m = entry.getValue();
+            if (m != null) {
+                nonNullCount++;
+                String statePayload = m.getPayload();
+                stateOccurrences.put(statePayload, stateOccurrences.getOrDefault(statePayload, 0) + 1);
             }
-            
-            // Byzantine quorum needs majority for N = 4
-            int quorumSize = (N + 1) / 2;
-            boolean hasQuorum = false;
-            String quorumState = null;
-            
-            for (Map.Entry<String, Integer> entry : stateOccurrences.entrySet()) {
-                if (entry.getValue() >= quorumSize) {
-                    hasQuorum = true;
-                    quorumState = entry.getKey();
-                    break;
-                }
+        }
+        
+        System.out.println("Number of messages: " + nonNullCount);
+        System.out.println("State occurrences: " + stateOccurrences);
+        
+        // Byzantine quorum needs majority for N = 4
+        int quorumSize = (N + 1) / 2;
+        boolean hasQuorum = false;
+        String quorumState = null;
+        
+        for (Map.Entry<String, Integer> entry : stateOccurrences.entrySet()) {
+            if (entry.getValue() >= quorumSize) {
+                hasQuorum = true;
+                quorumState = entry.getKey();
+                break;
             }
-            
-            // Check if we have a quorum or should adopt leader's value
-            if (nonNullCount >= N - f) {
-                if (hasQuorum) {
-                    // Case 1: Byzantine quorum established
-                    collected = true;
-                    Logger.log(Logger.CONDITIONAL_COLLECT, "Byzantine quorum of equal states collected successfully");
-                    
-                    // Convert the map back to an array for compatibility with the callback
-                    Message[] messageArray = mapToArray(collectedMessages, quorumState);
-                    
-                    // Trigger the callback with the collected messages
-                    if (callback != null) {
-                        callback.onCollected(messageArray);
-                    }
-                } else if (leaderMessage != null) {
-                    // Case 2: No quorum, but leader has a valid state - adopt leader's value
-                    collected = true;
-                    Logger.log(Logger.CONDITIONAL_COLLECT, 
-                            "No quorum established, adopting leader's state: " + leaderMessage.getPayload());
-                    
-                    // Create a message array with all processes adopting the leader's value
-                    Message[] adoptedMessages = new Message[N];
-                    for (int i = 0; i < N; i++) {
-                        adoptedMessages[i] = new Message(leaderMessage.getPayload(), leaderMessage.getCommand());
-                    }
-                    
-                    // Trigger the callback with the updated messages
-                    if (callback != null) {
-                        callback.onCollected(adoptedMessages);
-                    }
-                } else {
-                    Logger.log(Logger.CONDITIONAL_COLLECT, 
-                            "No quorum established and no valid leader state available");
-                }
+        }
+        
+        // Value to adopt (either quorum value or leader's value)
+        String adoptedValue = null;
+        
+        // Check if we have a quorum or should adopt leader's value
+        // In this special case, we're also accepting just a leader message without requiring N-f messages
+        if (nonNullCount >= 1) {
+            if (hasQuorum) {
+                // Case 1: Byzantine quorum established
+                adoptedValue = quorumState;
+                Logger.log(Logger.CONDITIONAL_COLLECT, "Byzantine quorum of equal states collected successfully");
+            } else if (leaderMessage != null) {
+                // Case 2: No quorum, but leader has a valid state - adopt leader's value
+                adoptedValue = leaderMessage.getPayload();
+                Logger.log(Logger.CONDITIONAL_COLLECT, 
+                        "No quorum established, adopting leader's state: " + adoptedValue);
             } else {
                 Logger.log(Logger.CONDITIONAL_COLLECT, 
-                        "Not enough messages received to establish collection");
+                        "No quorum established and no valid leader state available");
+                return;
             }
-        } catch (Exception e) {
+            
+            // Mark as collected
+            collected = true;
+            
+            // Create a WRITE message with the adopted value
+            Message writeMessage = new Message(adoptedValue, CMD_WRITE);
+            
+            // Send WRITE message to all processes
+            for (AuthenticatedPerfectLinks link : links) {
+                link.alp2pSend(link.getDestinationEntity(), writeMessage);
+                System.out.println("----------------- Sent WRITE message to member: " + link.getDestinationEntity() + " -----------------");
+            }
+            
+        } else {
             Logger.log(Logger.CONDITIONAL_COLLECT,
-                    "Error processing COLLECTED message: " + e.getMessage());
-            e.printStackTrace();
+                    "Not enough messages received to establish collection");
         }
+    } catch (Exception e) {
+        Logger.log(Logger.CONDITIONAL_COLLECT,
+                "Error processing COLLECTED message: " + e.getMessage());
+        e.printStackTrace();
     }
+}
 
     /**
      * Deserialize messages from JSON.

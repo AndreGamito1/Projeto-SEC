@@ -25,6 +25,7 @@ public class Member {
     protected List<EpochState> writeSet;    
     private static final String RESOURCES_FILE = "shared/resources.json";
     private static final String[] MEMBERS = {"member1", "member2", "member3", "member4"};
+    private final ConditionalCollect conditionalCollect;
     
     // Add connections attribute to store symmetric keys
     protected Map<String, String> connections = new HashMap<>();
@@ -66,8 +67,15 @@ public class Member {
         if(!name.equals("leader")){
             setupMemberLinks();
         }
-
-
+        AuthenticatedPerfectLinks[] memberLinksArray = memberLinks.values().toArray(new AuthenticatedPerfectLinks[0]);
+        this.conditionalCollect = new ConditionalCollect(
+            this.name,
+            "leader",
+            4,
+            1,
+            memberLinksArray,
+            this::onMessagesCollected  // Callback for collected messages
+        );
         
         // Initialize connections map with an empty key for the leader
         connections.put("leader", "");
@@ -240,6 +248,7 @@ public class Member {
                 case CMD_COLLECTED:
                     System.out.println("Received COLLECTED message from leader");
                     System.out.println(payload);
+                    conditionalCollect.processCollected(authMessage);
                     break;
 
                 case "TEST_MESSAGE":
@@ -362,6 +371,34 @@ public class Member {
         return name;
     }
     
+    /**
+     * Callback method for when messages are collected by conditional collect.
+     * Simply forwards the collected message to all processes.
+     *
+     * @param messages The collected messages
+     */
+    private void onMessagesCollected(Message[] messages) {
+        // Handle collected messages
+        Logger.log(Logger.EPOCH_CONSENSUS, "Messages collected in ByzantineEpochConsensus");
+        
+        if (messages == null || messages.length == 0) {
+            Logger.log(Logger.EPOCH_CONSENSUS, "No messages to forward");
+            return;
+        }
+        
+        // Get the consensus message (first message in array)
+        Message consensusMessage = messages[0];
+        
+        // Forward this message to all processes using the memberLinks map
+        for (Map.Entry<String, AuthenticatedPerfectLinks> entry : memberLinks.entrySet()) {
+            String memberId = entry.getKey();
+            AuthenticatedPerfectLinks link = entry.getValue();
+            
+            link.alp2pSend(memberId, consensusMessage);
+            System.out.println("Forwarded collected message to: " + memberId);
+        }
+    }
+
     /**
      * Main method to start a member instance.
      * 
