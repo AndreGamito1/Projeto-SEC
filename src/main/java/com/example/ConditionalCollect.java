@@ -238,6 +238,7 @@ public class ConditionalCollect {
  */
 public void processCollected(Message message) {
     if (collected) {
+        System.out.println("Already collected, ignoring COLLECTED message");
         return; // Already collected
     }
     System.out.println("----------------- Processing COLLECTED message -----------------");

@@ -1,4 +1,3 @@
-# Simple Blockchain System Starter
 param (
     [int]$HttpPort = 8080,
     [int]$NumClients = 2,
