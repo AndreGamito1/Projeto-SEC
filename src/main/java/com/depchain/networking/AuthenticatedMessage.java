@@ -1,4 +1,4 @@
-package com.example;
+package com.depchain.networking;
 
 public class AuthenticatedMessage extends Message {
     private String authString;  

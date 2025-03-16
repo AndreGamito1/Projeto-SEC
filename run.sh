@@ -58,17 +58,17 @@ start_process() {
 
 # 1. Start Leader
 echo "Starting Leader process..."
-start_process "Leader" "mvn exec:java -Dexec.mainClass=com.example.Leader"
+start_process "Leader" "mvn exec:java -Dexec.mainClass=com.depchain.consensus.Leader"
 
 # 2. Start Members
 for i in {1..4}; do
   echo "Starting Member $i process..."
-  start_process "Member$i" "mvn exec:java -Dexec.mainClass=com.example.Member -Dexec.args=member$i"
+  start_process "Member$i" "mvn exec:java -Dexec.mainClass=com.depchain.consensus.Member -Dexec.args=member$i"
 done
 
 # 3. Start ClientLibrary with REST API
 echo "Starting ClientLibrary REST API on port $HTTP_PORT..."
-start_process "ClientLibrary" "mvn exec:java -Dexec.mainClass=com.example.ClientLibrary -Dexec.args=$HTTP_PORT"
+start_process "ClientLibrary" "mvn exec:java -Dexec.mainClass=com.depchain.client.ClientLibrary -Dexec.args=$HTTP_PORT"
 
 # 4. Start Clients (if not disabled)
 if [ "$REST_API_ONLY" = false ]; then
@@ -76,7 +76,7 @@ if [ "$REST_API_ONLY" = false ]; then
   for i in $(seq 1 $NUM_CLIENTS); do
     client_id="Client$i"
     echo " - Launching client: $client_id"
-    start_process "$client_id" "mvn exec:java -Dexec.mainClass=com.example.Client -Dexec.args=$client_id"
+    start_process "$client_id" "mvn exec:java -Dexec.mainClass=com.depchain.client.Client -Dexec.args=$client_id"
   done
 fi
 
@@ -87,7 +87,7 @@ echo "REST API is available at: http://localhost:$ACTUAL_HTTP_PORT/blockchain/"
 start_blockchain_client() {
   local client_id=${1:-Client$(shuf -i 100-999 -n 1)}
   echo "Launching client: $client_id"
-  $TERMINAL --title="$client_id" -- bash -c "echo 'Starting Blockchain Client: $client_id'; mvn exec:java -Dexec.mainClass=com.example.Client -Dexec.args=$client_id; bash" &
+  $TERMINAL --title="$client_id" -- bash -c "echo 'Starting Blockchain Client: $client_id'; mvn exec:java -Dexec.mainClass=com.depchain.client.Client -Dexec.args=$client_id; bash" &
 }
 
 # Export function for bash session

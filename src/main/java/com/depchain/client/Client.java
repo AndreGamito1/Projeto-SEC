@@ -1,4 +1,4 @@
-package com.example;
+package com.depchain.client;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -6,6 +6,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import org.json.JSONObject;
+
+
 
 /**
  * Client class that uses the REST API to interact with the blockchain.

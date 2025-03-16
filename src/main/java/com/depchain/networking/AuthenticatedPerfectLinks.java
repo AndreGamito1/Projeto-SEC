@@ -1,4 +1,4 @@
-package com.example;
+package com.depchain.networking;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +12,8 @@ import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+
+import com.depchain.utils.Logger;
 
 interface MessageCallback {
     void onMessageReceived(AuthenticatedMessage authMessage);

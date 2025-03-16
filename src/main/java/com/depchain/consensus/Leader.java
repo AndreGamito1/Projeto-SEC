@@ -1,10 +1,7 @@
-package com.example;
+package com.depchain.consensus;
 
-import java.io.File;
-import java.io.FileWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +9,11 @@ import javax.crypto.SecretKey;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+
+import com.depchain.networking.AuthenticatedPerfectLinks;
+import com.depchain.utils.KeyManager;
+import com.depchain.utils.Logger;
+import com.depchain.networking.*;
 
 
 public class Leader extends Member {

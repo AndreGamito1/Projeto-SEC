@@ -1,8 +1,10 @@
-package com.example;
+package com.depchain.networking;
 import java.io.*;
 import java.net.*;
 import java.util.Arrays;
 import java.util.concurrent.*;
+
+import com.depchain.utils.Logger;
 
 /**
  * StubbornLinks implements a reliable UDP-based communication protocol that guarantees

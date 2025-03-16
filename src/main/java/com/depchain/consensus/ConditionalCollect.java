@@ -1,16 +1,18 @@
-package com.example;
+package com.depchain.consensus;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
+
+import com.depchain.utils.*;
+import com.depchain.networking.*;
+
 import java.util.Dictionary;
 import java.util.Enumeration;
+
+
 
 /**
  * Interface for a message collection predicate.
@@ -198,7 +200,7 @@ public class ConditionalCollect {
                 }
 
                 System.out.println("Serializing messages:" + messages);
-                String messagesJson = serializeMessages(allMessages);  // Using allMessages instead of quorumMessages
+                String messagesJson = serializeMessages(allMessages);  
                 System.out.println("Serialized messages:" + messagesJson);
                
                 Message collectedMessage = new Message(messagesJson, CMD_COLLECTED);

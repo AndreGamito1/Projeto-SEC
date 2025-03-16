@@ -1,4 +1,4 @@
-package com.example;
+package com.depchain.consensus;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -13,7 +13,11 @@ import javax.crypto.SecretKey;
 import org.ietf.jgss.MessageProp;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import com.example.EpochState;
+
+
+import com.depchain.utils.*;
+import com.depchain.networking.*;
+
 /**
  * Implements a member node in the Byzantine consensus system
  */

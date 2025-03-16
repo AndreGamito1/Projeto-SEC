@@ -1,4 +1,4 @@
-package com.example;
+package com.depchain.client;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -7,6 +7,8 @@ import java.util.Random;
 import org.json.JSONObject;
 
 import com.sun.net.httpserver.HttpServer;
+import com.depchain.utils.*;
+import com.depchain.networking.*;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 

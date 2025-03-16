@@ -1,4 +1,4 @@
-package com.example;
+package com.depchain.utils;
 
 /**
 * A logger that can be toggled on/off per level

@@ -1,11 +1,8 @@
-package com.example;
+package com.depchain.consensus;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import com.example.EpochState;
 
+import com.depchain.utils.*;
+import com.depchain.networking.*;
 /**
  * Interface for Byzantine Epoch Consensus.
  */
