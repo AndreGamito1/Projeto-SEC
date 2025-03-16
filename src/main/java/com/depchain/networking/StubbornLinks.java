@@ -1,18 +1,32 @@
-package com.example;
+package com.depchain.networking;
 import java.io.*;
 import java.net.*;
 import java.util.Arrays;
 import java.util.concurrent.*;
 
-/*TODO: Write function description for each function */
+import com.depchain.utils.Logger;
 
+/**
+ * StubbornLinks implements a reliable UDP-based communication protocol that guarantees
+ * message delivery through acknowledgments and retransmissions.
+ *
+ */
 public class StubbornLinks {
-    private final DatagramSocket socket;
-    private final InetAddress destAddress;
-    private final int destPort;
-    private final ConcurrentHashMap<String, Boolean> ackReceived;
-    private final MessageCallback callback;
+    private final DatagramSocket socket;         
+    private final InetAddress destAddress;       
+    private final int destPort;                  
+    private final ConcurrentHashMap<String, Boolean> ackReceived;  
+    private final MessageCallback callback;      
     
+    /**
+     * Constructs a StubbornLinks instance to handle reliable message delivery.
+     * 
+     * @param destIP     Destination IP address where messages will be sent
+     * @param destPort   Destination port number where messages will be sent
+     * @param hostPort   Local port to bind the socket to for sending/receiving
+     * @param callback   Callback interface to be invoked when messages are received
+     * @throws Exception If socket creation or address resolution fails
+     */
     public StubbornLinks(String destIP, int destPort, int hostPort, MessageCallback callback) throws Exception {
         this.socket = new DatagramSocket(hostPort);
         this.destAddress = InetAddress.getByName(destIP);
@@ -20,13 +34,18 @@ public class StubbornLinks {
         this.ackReceived = new ConcurrentHashMap<>();
         this.callback = callback;
         
-        // Start the thread to listen for incoming packets
         receiveAcknowledgment();
     }
     
+    /**
+     * Sends a message with guaranteed delivery (Stubborn Point-to-Point Send).
+     * This method serializes the message, then repeatedly sends it until an acknowledgment
+     * is received, ensuring delivery even on unreliable networks.
+     * 
+     * @param message The Message object to be sent
+     */
     public void sp2pSend(Message message) {
         try {
-            // Serialize the Message object to a byte array
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
             ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
             objectOutputStream.writeObject(message);
@@ -57,14 +76,19 @@ public class StubbornLinks {
         }
     }
     
+    /**
+     * Delivers a received message (Stubborn Point-to-Point Deliver).
+     * This method deserializes the received byte array into an AuthenticatedMessage
+     * and passes it to the registered callback.
+     * 
+     * @param messageBytes The serialized message bytes to be delivered
+     */
     public void sp2pDeliver(byte[] messageBytes) {
         try {
-            // Deserialize the byte array back to an AuthenticatedMessage object
             ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(messageBytes);
             ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream);
             AuthenticatedMessage authMessage = (AuthenticatedMessage) objectInputStream.readObject();
             
-            // Trigger the callback
             if (callback != null) {
                 callback.onMessageReceived(authMessage); 
             }
@@ -73,13 +97,20 @@ public class StubbornLinks {
         }
     }
     
+    /**
+     * Starts a background thread that continuously listens for incoming packets.
+     * This method handles both acknowledgments for sent messages and new messages
+     * that need to be delivered.
+     * 
+     * When a new message is received, it automatically sends an acknowledgment
+     * back to the sender.
+     */
     public void receiveAcknowledgment() {
         new Thread(() -> {
             try {
                 byte[] buffer = new byte[1024];
                 
                 while (true) {
-                    // Reset the buffer for each new packet
                     Arrays.fill(buffer, (byte) 0);
                     
                     DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
@@ -96,15 +127,12 @@ public class StubbornLinks {
                             }
                         } else {
                             try {
-                                // Try to deserialize as a Message object
                                 ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(packet.getData(), 0, packet.getLength());
                                 ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream);
                                 Message message = (Message) objectInputStream.readObject();
                                 
-                                // Deliver the message
                                 sp2pDeliver(packet.getData());
                                 
-                                // Send acknowledgment using the message's ID
                                 String messageID = message.getMessageID();
                                 String ackMessage = "ACK:" + messageID;
                                 byte[] ackBuffer = ackMessage.getBytes();

@@ -1,8 +1,8 @@
 {
-  "leader": {"memberPort": "5000"},
-  "member4": {"memberPort": "5004"},
+  "leader": {"connections": ["member1", "member2", "member3", "member4", "clientLibrary"]},
+  "member4": {"connections": ["member1", "member2", "member3", "leader"]},
   "clientLibrary": {"memberPort": "5005"},
-  "member2": {"memberPort": "5002"},
-  "member3": {"memberPort": "5003"},
-  "member1": {"memberPort": "5001"}
+  "member2": {"connections": ["member1", "member3", "member4", "leader"]},
+  "member3": {"connections": ["member1", "member2", "member4", "leader"]},
+  "member1": {"connections": ["member2", "member3", "member4", "leader"]}
 }

@@ -1,4 +1,4 @@
-package com.example;
+package com.depchain.networking;
 import java.io.Serializable;
 import java.util.UUID;
 
