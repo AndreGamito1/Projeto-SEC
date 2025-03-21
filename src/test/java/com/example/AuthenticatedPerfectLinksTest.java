@@ -4,10 +4,10 @@ import org.junit.jupiter.api.Timeout;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import com.example.AuthenticatedMessage;
-import com.example.AuthenticatedPerfectLinks;
-import com.example.Message;
-import com.example.StubbornLinks;
+import com.depchain.networking.AuthenticatedMessage;
+import com.depchain.networking.AuthenticatedPerfectLinks;
+import com.depchain.networking.Message;
+import com.depchain.networking.StubbornLinks;
 
 import java.util.List;
 import java.util.UUID;

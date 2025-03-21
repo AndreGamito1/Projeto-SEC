@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.depchain</groupId>
-    <artifactId>leader-app</artifactId>
+    <artifactId>DepChain</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
@@ -83,7 +83,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.depchain.consensus.Leader</mainClass>
+                            <mainClass>com.depchain.consensus.main</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>

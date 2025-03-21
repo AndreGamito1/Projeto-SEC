@@ -1,8 +1,0 @@
-{
-  "leader": {"connections": ["member1", "member2", "member3", "member4", "clientLibrary"]},
-  "member4": {"connections": ["member1", "member2", "member3", "leader"]},
-  "clientLibrary": {"memberPort": "5005"},
-  "member2": {"connections": ["member1", "member3", "member4", "leader"]},
-  "member3": {"connections": ["member1", "member2", "member4", "leader"]},
-  "member1": {"connections": ["member2", "member3", "member4", "leader"]}
-}

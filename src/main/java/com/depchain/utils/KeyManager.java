@@ -16,15 +16,23 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.crypto.SecretKey;
+
 import org.json.JSONObject;
+
+import com.depchain.networking.AuthenticatedMessage;
+import com.depchain.networking.Message;
 
 /**
  * Manages cryptographic keys for secure communication
  */
 public class KeyManager {
-    private static final String KEYS_FILE = "shared/keys.json";
-    private Map<String, PublicKey> publicKeys = new HashMap<>();
-    private Map<String, PrivateKey> privateKeys = new HashMap<>();
+    private static final String KEYS_FILE = "src/main/resources/setup.json";
+    private Map<String, PublicKey> publicKeys = new HashMap<>();        //Holds the RSA Public Key for each member connection
+    private Map<String, PrivateKey> privateKeys = new HashMap<>();      //Holds the RSA Private Key for each member connection
+    private Map<String, SecretKey> memberKeys = new HashMap<>();        //Holds the AES Key for each member connection 
+    private String entityName;
+
 
     /**
      * Constructor for KeyManager.
@@ -46,26 +54,31 @@ public class KeyManager {
      * @return true if successful, false otherwise
      */
     public boolean createKeyPair(String entityName) {
-        String privateKeyPath = "shared/priv_keys/" + entityName + "_private.pem";
-        String publicKeyPath = "shared/pub_keys/" + entityName + "_public.pem";
+        String privateKeyPath = "src/main/resources/priv_keys/" + entityName + "_private.pem";
+        String publicKeyPath = "src/main/resources/pub_keys/" + entityName + "_public.pem";
 
         try {
             // Create directories if they don't exist
-            new File("shared/priv_keys").mkdirs();
-            new File("shared/pub_keys").mkdirs();
+            new File("src/main/resources/priv_keys").mkdirs();
+            new File("src/main/resources/pub_keys").mkdirs();
 
-            // Generate RSA key pair
+            // Generate RSA key pair with explicit key size (2048 bits recommended)
             KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+            keyGen.initialize(2048); // Explicitly set key size to 2048 bits
+            
             KeyPair pair = keyGen.generateKeyPair();
             PrivateKey privateKey = pair.getPrivate();
             PublicKey publicKey = pair.getPublic();
 
+            // Log key details for debugging
+            Logger.log(Logger.AUTH_LINKS, "Generated RSA key pair for " + entityName);
+            Logger.log(Logger.AUTH_LINKS, "  Public key format: " + publicKey.getFormat());
+            Logger.log(Logger.AUTH_LINKS, "  Public key algorithm: " + publicKey.getAlgorithm());
+            Logger.log(Logger.AUTH_LINKS, "  Public key size: " + ((java.security.interfaces.RSAPublicKey)publicKey).getModulus().bitLength() + " bits");
+
             // Save keys to files
             savePrivateKeyToPem(privateKey, privateKeyPath);
             savePublicKeyToPem(publicKey, publicKeyPath);
-
-            // Update keys.json file
-            updateKeysJsonFile(entityName, publicKeyPath, privateKeyPath);
 
             return true;
         } catch (Exception e) {
@@ -74,53 +87,9 @@ public class KeyManager {
         }
     }
 
-    /**
-     * Updates the keys.json file to include the new entity's keys.
-     * Creates the file if it doesn't exist.
-     * 
-     * @param entityName The name of the entity
-     * @param publicKeyPath Path to the public key
-     * @param privateKeyPath Path to the private key
-     * @throws IOException If file operations fail
-     */
-    private void updateKeysJsonFile(String entityName, String publicKeyPath, String privateKeyPath) throws IOException {
-        JSONObject keysJson;
-        File keysFile = new File(KEYS_FILE);
-
-        // Create the parent directory if it doesn't exist
-        if (!keysFile.getParentFile().exists()) {
-            keysFile.getParentFile().mkdirs();
-        }
-
-        // Read existing file or create new JSON structure
-        if (keysFile.exists()) {
-            String content = new String(Files.readAllBytes(keysFile.toPath()));
-            keysJson = new JSONObject(content);
-        } else {
-            keysJson = new JSONObject();
-            keysJson.put("keys", new JSONObject());
-        }
-
-        // Add or update entity's keys
-        JSONObject entityJson = new JSONObject();
-
-        // Use relative paths in the JSON file
-        String relativePublicKeyPath = publicKeyPath.replace("shared/", "");
-        String relativePrivateKeyPath = privateKeyPath.replace("shared/", "");
-
-        entityJson.put("public", relativePublicKeyPath);
-        entityJson.put("private", relativePrivateKeyPath);
-
-        keysJson.getJSONObject("keys").put(entityName, entityJson);
-
-        // Write the updated JSON back to the file
-        try (FileOutputStream fos = new FileOutputStream(keysFile)) {
-            fos.write(keysJson.toString(4).getBytes());
-        }
-    }
 
     /**
-     * Waits until all keys exist in keys.json before proceeding.
+     * Waits until all keys exist in setup.json before proceeding.
      *
      * @throws IOException If file operations fail
      * @throws InterruptedException If thread sleep is interrupted
@@ -132,28 +101,42 @@ public class KeyManager {
         }
 
         while (true) {
+            System.out.println("Waiting for keys to be generated...");
             String content = new String(Files.readAllBytes(keysFile.toPath()));
             JSONObject json = new JSONObject(content);
 
-            if (!json.has("keys")) {
-                throw new IOException("No 'keys' object found in keys.json");
+            if (!json.has("setup")) {
+                throw new IOException("No 'setup' object found in setup.json");
             }
 
-            JSONObject keysJson = json.getJSONObject("keys");
+            JSONObject setupJson = json.getJSONObject("setup");
             boolean allKeysExist = true;
 
-            for (String entity : keysJson.keySet()) {
-                JSONObject entityKeys = keysJson.getJSONObject(entity);
-
-                if (!entityKeys.has("public") || !entityKeys.has("private")) {
+            for (String entity : setupJson.keySet()) {
+                if (entity.equals("clientLibrary") || entity.equals("leader")) {
+                    continue; 
+                }
+                Object entityKeysObj = setupJson.get(entity);
+                if (!(entityKeysObj instanceof JSONObject)) {
+                    System.out.println("Invalid key format for " + entity + ": not a JSONObject");
                     allKeysExist = false;
                     break;
                 }
 
-                String publicKeyPath = "shared/" + entityKeys.getString("public");
-                String privateKeyPath = "shared/" + entityKeys.getString("private");
+                JSONObject entityKeys = (JSONObject) entityKeysObj;
+              
+
+                if (!entityKeys.has("public") || !entityKeys.has("private")) {
+                    System.out.println("Key path not found for " + entity + " in the json file");
+                    allKeysExist = false;
+                    break;
+                }
+
+                String publicKeyPath = entityKeys.getString("public");
+                String privateKeyPath = entityKeys.getString("private");
 
                 if (!new File(publicKeyPath).exists() || !new File(privateKeyPath).exists()) {
+                    System.out.println("Keys not found, checking again...");
                     allKeysExist = false;
                     break;
                 }
@@ -163,10 +146,10 @@ public class KeyManager {
                 break;
             }
 
-            // Sleep for a while before checking again
             Thread.sleep(1000);
         }
     }
+
     /**
      * Saves a private key to a file in PEM format.
      * 
@@ -222,26 +205,30 @@ public class KeyManager {
     }
 
     /**
-     * Loads cryptographic keys from the paths specified in keys.json file.
+     * Loads cryptographic keys from the paths specified in setup.json file.
      * 
      * @param entityName The name of the entity to load keys for
      * @throws Exception If loading fails
      */
     private void loadKeys(String entityName) throws Exception {
-        String baseDir = "shared";
         String content = new String(Files.readAllBytes(Paths.get(KEYS_FILE)));
         JSONObject json = new JSONObject(content);
 
-        if (!json.has("keys")) {
-            throw new IOException("No 'keys' object found in keys.json");
+     
+        if (!json.has("setup")) {
+            throw new IOException("No 'setup' object found in setup.json");
         }
 
-        JSONObject keysJson = json.getJSONObject("keys");
+        JSONObject setupJson = json.getJSONObject("setup");
 
         // Load keys for all entities
-        for (String entity : keysJson.keySet()) {
-            JSONObject entityKeys = keysJson.getJSONObject(entity);
-
+        for (String entity : setupJson.keySet()) {
+            if (entity.equals("clientLibrary") || entity.equals("leader")) {
+                continue; 
+            }
+            JSONObject entityKeys = setupJson.getJSONObject(entity);
+         
+    
             if (!entityKeys.has("public") || !entityKeys.has("private")) {
                 throw new Exception("Invalid key format for " + entity + ": missing public or private key paths");
             }
@@ -249,14 +236,11 @@ public class KeyManager {
             String publicKeyPath = entityKeys.getString("public");
             String privateKeyPath = entityKeys.getString("private");
 
-            String fullPublicKeyPath = Paths.get(baseDir, publicKeyPath).toString();
-            String fullPrivateKeyPath = Paths.get(baseDir, privateKeyPath).toString();
-
-            PublicKey publicKey = loadPublicKeyFromFile(fullPublicKeyPath);
+            PublicKey publicKey = loadPublicKeyFromFile(publicKeyPath);
             publicKeys.put(entity, publicKey);
 
             if (entity.equals(entityName)) {
-                PrivateKey privateKey = loadPrivateKeyFromFile(fullPrivateKeyPath);
+                PrivateKey privateKey = loadPrivateKeyFromFile(privateKeyPath);
                 privateKeys.put(entity, privateKey);
             }
         }
@@ -360,5 +344,29 @@ public class KeyManager {
      */
     public PrivateKey getPrivateKey(String entityName) {
         return privateKeys.get(entityName);
+    }
+
+    public void storeAesKey(String member, SecretKey aesKey) {
+        memberKeys.put(member, aesKey);
+    }
+
+    public void handleNewKey(String sourceMember, Message message) {
+        try {
+            String encryptedKey = message.getPayload();        
+            PrivateKey privateKey = getPrivateKey(sourceMember); 
+            String decryptedKey = Encryption.decryptWithRsa(encryptedKey, privateKey);
+            SecretKey aesKey = Encryption.stringToAesKey(decryptedKey);
+            storeAesKey(sourceMember, aesKey);        
+        } catch (Exception e) {
+            e.printStackTrace();
+    }
+}
+
+    public SecretKey getAESKey(String memberName) {
+        return memberKeys.get(memberName);
+    }
+
+    public boolean hasAESKey(String memberName) {
+        return memberKeys.containsKey(memberName);
     }
 }
