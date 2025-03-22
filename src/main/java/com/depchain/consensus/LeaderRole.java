@@ -31,6 +31,14 @@ public class LeaderRole implements Role {
             case "STATE":
                 handleStateMessage(message);
                 break;
+            case "WRITE":
+                System.out.println("Processing WRITE Message: " + message.getCommand() + " from " + sourceId);
+                handleAckMessage(message);
+                break;
+            case "ACCEPT":
+                System.out.println("Processing ACCEPT Message: " + message.getCommand() + " from " + sourceId);
+                handleAckMessage(message);
+                break;
             default:
                 System.out.println("Unknown command: " + message.getCommand());
                 break;
@@ -67,6 +75,11 @@ public class LeaderRole implements Role {
     @Override
     public void handleProposeMessage(Message message) {
         member.getConditionalCollect().input(message.getPayload());
+    }
+
+    @Override
+    public void handleAckMessage(Message message) {
+        member.getConditionalCollect().appendAck(message.getPayload(), message.getCommand());
     }
 
 }

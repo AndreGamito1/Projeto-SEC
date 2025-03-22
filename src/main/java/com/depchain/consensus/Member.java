@@ -2,8 +2,7 @@ package com.depchain.consensus;
 
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
-
+import java.util.ArrayList;
 import javax.crypto.SecretKey;
 
 import com.depchain.networking.*;
@@ -16,6 +15,7 @@ public class Member {
     private MemberManager memberManager;
     private String name;
     private ConditionalCollect conditionalCollect;
+    private List<String> blockchain;
     
 
     public Member(String name) throws Exception {
@@ -30,10 +30,10 @@ public class Member {
         else {
             currentRole = new MemberRole(this);
         }
+        this.blockchain = new ArrayList<>();
         
-        this.conditionalCollect = new ConditionalCollect(memberManager);
+        this.conditionalCollect = new ConditionalCollect(memberManager, this);
         start();
-        Logger.getLogger(Member.class.getName()).info("Member " + name + " creation finished");
     }
 
 
@@ -67,10 +67,6 @@ public class Member {
         System.out.println("Setting up member links");
         memberManager.setupMemberLinks();
         memberLinks = memberManager.getMemberLinks();
-        // Send a test message to each member
-        for (String member : memberLinks.keySet()) {
-            memberManager.sendToMember(member, "Hello friend", "TEST");
-        }
     }
 
  
@@ -112,6 +108,12 @@ public class Member {
 
     public Message handleNewMessage(String sourceId, AuthenticatedMessage message) {
         return memberManager.handleNewMessage(sourceId, message);
+    }
+
+    // Appends a value to the blockchain
+    public void decide(String value) {
+        blockchain.add(value);
+        Logger.log(Logger.MEMBER, "Updated blockchain: " + blockchain);
     }
 
 }

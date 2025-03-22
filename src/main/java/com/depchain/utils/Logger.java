@@ -13,6 +13,7 @@ public class Logger {
     public static final String PURPLE = "\u001B[35m";
     public static final String CYAN = "\u001B[36m";
     public static final String WHITE = "\u001B[37m";
+    public static final String ORANGE = "\u001B[38;5;208m";
 
     // Log levels
     public static final int STUBBORN_LINKS = 0;          // Layer 0
@@ -107,7 +108,7 @@ public class Logger {
                     break;
                 case MEMBER:
                     prefix = "[Member] ";
-                    color = BLUE;
+                    color = ORANGE;
                     break;
                 case CONDITIONAL_COLLECT:
                     prefix = "[ConditionalCollector] ";

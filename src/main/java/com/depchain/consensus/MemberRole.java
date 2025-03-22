@@ -24,15 +24,21 @@ public class MemberRole implements Role {
                 switch (message.getCommand()) {
                     case "CMD_KEY_EXCHANGE":
                         break;
-                    case "TEST":
-                        System.out.println("Processing TEST Message: " + message.getCommand() + " from " + sourceId);
-                        break;
                     case "CMD_KEY_EXCHANGE_ACK":
                         break;  
                     case "COLLECTED":
                         handleCollectedMessage(message);
-                        
                         break;
+
+                    case "WRITE":
+                        System.out.println("Processing WRITE Message: " + message.getCommand() + " from " + sourceId);
+                        handleAckMessage(message);
+                        break;
+                    case "ACCEPT":
+                        System.out.println("Processing ACCEPT Message: " + message.getCommand() + " from " + sourceId);
+                        handleAckMessage(message);
+                        break;
+
                     case "READ":
                         System.out.println("Processing READ Message: " + message.getCommand() + " from " + sourceId);
                         handleProposeMessage(message);
@@ -74,5 +80,11 @@ public class MemberRole implements Role {
     @Override
     public void handleProposeMessage(Message message) {
         member.getConditionalCollect().input(message.getPayload());
+    }
+
+    @Override
+    public void handleAckMessage(Message message) {
+        Logger.log(Logger.MEMBER, "Received ACK message: " + message.getPayload());
+        member.getConditionalCollect().appendAck(message.getPayload(), message.getCommand());;
     }
 }
