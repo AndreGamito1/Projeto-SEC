@@ -179,7 +179,7 @@ public class ConditionalCollect {
         try {
             // Wait for all members to send their state
             while ((collected.size() <= getQuorumSize() ) &&  timeout(7)) {
-                Thread.sleep(1000);
+                Thread.sleep(100);
                 System.out.println("Waiting for states");
                 Logger.log(Logger.CONDITIONAL_COLLECT, "current collected: " + createCollectedPayload(collected));
             }
@@ -291,7 +291,7 @@ public class ConditionalCollect {
         try {
             // Wait for enough write acknowledgments (quorum)
             while ((writeAcks.size() < getQuorumSize()) && timeout(7)) {
-                Thread.sleep(1000);
+                Thread.sleep(100);
                 System.out.println("Waiting for write acknowledgments");
                 Logger.log(Logger.CONDITIONAL_COLLECT, "current write acks: " + writeAcks.size() + "/" + getQuorumSize());
             }
@@ -325,7 +325,7 @@ public class ConditionalCollect {
         try {
             // Wait for enough accept acknowledgments (quorum)
             while ((acceptAcks.size() < getQuorumSize()) && timeout(7)) {
-                Thread.sleep(1000);
+                Thread.sleep(100);
                 System.out.println("Waiting for accept acknowledgments");
                 Logger.log(Logger.CONDITIONAL_COLLECT, "current accept acks: " + acceptAcks.size() + "/" + getQuorumSize());
             }
@@ -336,7 +336,10 @@ public class ConditionalCollect {
                 
             // Phase 3: Decide the value
             Logger.log(Logger.CONDITIONAL_COLLECT, "Deciding value: " + value);
-
+            collected.clear();
+            writeAcks.clear();
+            acceptAcks.clear();
+            isCollected = false;
             member.decide(value);
 
 
@@ -422,6 +425,8 @@ public class ConditionalCollect {
     private void abort() {
         Logger.log(Logger.CONDITIONAL_COLLECT, "Aborting conditional collect");
         collected.clear();
+        writeAcks.clear();
+        acceptAcks.clear();
         isCollected = false;
         for (String member : memberManager.getMemberLinks().keySet()) {
             memberManager.sendToMember(member, "", "ABORT");
