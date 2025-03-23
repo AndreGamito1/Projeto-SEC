@@ -34,7 +34,7 @@ public class LeaderRole implements Role {
 
                 Message message3 = new Message("yeager", "PROPOSE");
                 AuthenticatedMessage authenticatedMessage3 = new AuthenticatedMessage(message3, "yeager");
-                Logger.log(Logger.LEADER_ERRORS, "Proposing Eren message: " + message3.getPayload());
+                Logger.log(Logger.LEADER_ERRORS, "Proposing Yeager message: " + message3.getPayload());
                 member.insertMessageForTesting("member3", authenticatedMessage3);
                 Thread.sleep(100);
             } catch (InterruptedException e) {
@@ -104,19 +104,19 @@ public class LeaderRole implements Role {
 
     @Override
     public void handleStateMessage(AuthenticatedMessage message) {
-        Logger.log(Logger.LEADER_ERRORS, "Received state message: " + message.getPayload());
-        member.getConditionalCollect().appendState(message.getPayload());
+        member.getConsensus().handleStateMessage(message);
     }
 
     @Override
     public void handleProposeMessage(Message message) {
+        Logger.log(Logger.LEADER_ERRORS,"PROPOSING MESSAGE ------------------------ " + message.getPayload());
         member.setWorking(true);
-        member.getConditionalCollect().input(message.getPayload());
+        member.getConsensus().handleProposeMessage(message);
     }
 
     @Override
     public void handleAckMessage(Message message) {
-        member.getConditionalCollect().appendAck(message.getPayload(), message.getCommand());
+        member.getConsensus().handleAckMessage(message);
     }
 
     @Override

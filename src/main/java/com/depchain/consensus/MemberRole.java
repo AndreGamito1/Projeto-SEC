@@ -67,7 +67,7 @@ public class MemberRole implements Role {
 
     @Override
     public void handleCollectedMessage(AuthenticatedMessage message) {
-        member.getConditionalCollect().setCollected(message.getPayload());
+        member.getConsensus().handleCollectedMessage(message);
     }
 
     @Override
@@ -77,13 +77,13 @@ public class MemberRole implements Role {
 
     @Override
     public void handleProposeMessage(Message message) {
-        member.getConditionalCollect().input(message.getPayload());
+        member.getConsensus().handleProposeMessage(message);
     }
 
     @Override
     public void handleAckMessage(Message message) {
         Logger.log(Logger.MEMBER, "Received ACK message: " + message.getPayload());
-        member.getConditionalCollect().appendAck(message.getPayload(), message.getCommand());;
+        member.getConsensus().handleAckMessage(message);
     }
 
     @Override

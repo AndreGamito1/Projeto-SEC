@@ -14,11 +14,12 @@ public class Member {
     protected Map<String, AuthenticatedPerfectLinks> memberLinks;
     private MemberManager memberManager;
     private String name;
-    private ConditionalCollect conditionalCollect;
-    private List<String> blockchain;
+
+    private List<EpochState> blockchain;
     private List<Message> quorumDecideMessages;
     private List<Message> quorumAbortMessages;
     private boolean working;
+    private ByzantineEpochConsensus epochConsensus;
     
 
     public Member(String name) throws Exception {
@@ -27,6 +28,7 @@ public class Member {
         this.working = false;
         this.quorumAbortMessages = new ArrayList<>();
         this.quorumDecideMessages = new ArrayList<>();
+        this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, blockchain);
         System.out.println("Member created: " + name);
 
         setupMemberLinks();
@@ -38,8 +40,6 @@ public class Member {
             currentRole = new MemberRole(this);
         }
         this.blockchain = new ArrayList<>();
-        
-        this.conditionalCollect = new ConditionalCollect(memberManager, this);
         start();
     }
 
@@ -103,8 +103,8 @@ public class Member {
         return name;
     }
 
-    public ConditionalCollect getConditionalCollect() {
-        return conditionalCollect;
+    public ByzantineEpochConsensus getConsensus() {
+        return epochConsensus;
     }
 
     public void processMessage(String sourceId, AuthenticatedMessage message) throws Exception {
@@ -132,8 +132,9 @@ public class Member {
     }
 
     // Appends a value to the blockchain
-    public void decide(String value) {
-        blockchain.add(value);
+    public void addToBlockchain(EpochState state) {
+        blockchain.add(state);
+        setWorking(false);
         Logger.log(Logger.MEMBER, "Updated blockchain: " + blockchain);
     }
 
@@ -156,6 +157,16 @@ public class Member {
         return quorumAbortMessages;
     }
     
+    public void startConsensus() {
+        // If blockchain is empty, pass null or create an initial state
+        if (blockchain.isEmpty()) {
+            this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, blockchain);
+
+        }
+        else {
+            this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, blockchain.get(blockchain.size() - 1), blockchain);
+        }
+    }
 
     public void setWorking(boolean working) {
         this.working = working;

@@ -12,12 +12,15 @@ import com.depchain.utils.*;
  */
 public class ConditionalCollect {
     private final MemberManager memberManager;
-    private Map <String, String>  collected = new HashMap<>();
+    private Map <String, EpochState>  collected = new HashMap<>();
     private Map <String, String> writeAcks = new HashMap<>();
     private Map <String, String> acceptAcks = new HashMap<>();
     private boolean isCollected = false;
+    private boolean writeAcked = false;
+    private boolean acceptAcked = false;
     private final String name;
-    private final Member member;
+    private final ByzantineEpochConsensus epochConsensus;
+    private boolean working = false;
     
     /**
      * Creates a new ConditionalCollect instance
@@ -26,10 +29,10 @@ public class ConditionalCollect {
      * @param memberManager The manager to handle communications with members
      * @param outputPredicate The predicate that defines when collection is valid
      */
-    public ConditionalCollect(MemberManager memberManager, Member member) {
+    public ConditionalCollect(MemberManager memberManager, ByzantineEpochConsensus epochConsensus) {
         this.memberManager = memberManager;
         this.name = memberManager.getName();
-        this.member = member;
+        this.epochConsensus = epochConsensus;
     }
 
     public void setCollected(String payload) {
@@ -38,22 +41,108 @@ public class ConditionalCollect {
     }
 
     public void appendState(String statePayload){
-        Map<String, String> state = parseCollectedPayload(statePayload);
+        Map<String, EpochState> state = parseCollectedPayload(statePayload);
+        Logger.log(Logger.CONDITIONAL_COLLECT, "Appending state: " + state);
+
         collected.putAll(state);
         Logger.log(Logger.CONDITIONAL_COLLECT, "State appended: " + statePayload);
-        if (collected.size() >= getQuorumSize()) { 
-            isCollected = true; 
-            Logger.log(Logger.CONDITIONAL_COLLECT, "Quorum reached, collected: " + createCollectedPayload(collected));
+        Logger.log(Logger.CONDITIONAL_COLLECT, "Collected state: " + collected);
+        
+        if (checkQuorum(collected)) { 
+            isCollected = true;
         }
     }
 
+    public boolean checkQuorum(Map<String, EpochState> collected) {
+        Logger.log(Logger.CONDITIONAL_COLLECT, "Checking quorum with " + collected.size() + " entries");
+        
+        // If we don't have enough entries, quorum can't be reached
+        if (collected.size() < memberManager.getQuorumSize()) {
+            Logger.log(Logger.CONDITIONAL_COLLECT, "Not enough entries for quorum: " + collected.size() + " < " + memberManager.getQuorumSize());
+            return false;
+        }
+        
+        // Count occurrences of each value
+        Map<String, Integer> valueCounts = new HashMap<>();
+        
+        // Group by value and count
+        for (Map.Entry<String, EpochState> entry : collected.entrySet()) {
+            String key = entry.getKey();
+            EpochState state = entry.getValue();
+            
+            // Log each entry being processed
+            Logger.log(Logger.CONDITIONAL_COLLECT, "Processing entry: " + key + " = " + state);
+            
+            // Handle null states
+            if (state == null) {
+                valueCounts.put("NULL_VALUE", valueCounts.getOrDefault("NULL_VALUE", 0) + 1);
+                continue;
+            }
+            
+            String value = state.getValue();
+            valueCounts.put(value, valueCounts.getOrDefault(value, 0) + 1);
+        }
+        
+        // Log value counts
+        Logger.log(Logger.CONDITIONAL_COLLECT, "Value counts: " + valueCounts);
+        
+        // Check if any value has reached quorum
+        for (Map.Entry<String, Integer> entry : valueCounts.entrySet()) {
+            String value = entry.getKey();
+            Integer count = entry.getValue();
+            
+            Logger.log(Logger.CONDITIONAL_COLLECT, "Checking value: " + value + " with count: " + count);
+            
+            if (count >= memberManager.getQuorumSize()) {
+                Logger.log(Logger.CONDITIONAL_COLLECT, "Quorum reached with value: " + value);
+                return true;
+            }
+        }
+        
+        Logger.log(Logger.CONDITIONAL_COLLECT, "No quorum reached");
+        return false;
+    }
+
+    public boolean checkAckQuorum(Map<String, String> Acks) {
+        // If we don't have enough entries, quorum can't be reached
+        if (Acks.size() < memberManager.getQuorumSize()) {
+            return false;
+        }
+        
+        // Count occurrences of each value
+        Map<String, Integer> valueCounts = new HashMap<>();
+        
+        // Group by value and count
+        for (String ack : Acks.values()) {
+            // Handle null values
+            if (ack == null) {
+                valueCounts.put(null, valueCounts.getOrDefault(null, 0) + 1);
+                continue;
+            }
+            
+            valueCounts.put(ack, valueCounts.getOrDefault(ack, 0) + 1);
+        }
+        Logger.log(Logger.CONDITIONAL_COLLECT, "Value counts: " + valueCounts);
+        
+        // Check if any value has reached quorum
+        for (Integer count : valueCounts.values()) {
+            if (count >= memberManager.getQuorumSize()) {
+                Logger.log(Logger.CONDITIONAL_COLLECT, "Quorum reached with value: " + count);
+                return true;
+            }
+        }
+        
+        return false;
+    }
     public void appendAck(String ackPayload, String ackType) {
         if (ackType.equals("ACCEPT")) {
+            if (acceptAcked) { return; }
             Map<String, String> ack = parseAck(ackPayload);
             acceptAcks.putAll(ack);
             Logger.log(Logger.CONDITIONAL_COLLECT, "Accept ack appended: " + ackPayload);
             Logger.log(Logger.CONDITIONAL_COLLECT, "Accept acks state: " + acceptAcks);
         } else if (ackType.equals("WRITE")) {
+            if (writeAcked) { return; }
             Map<String, String> ack = parseAck(ackPayload);
             writeAcks.putAll(ack);
             Logger.log(Logger.CONDITIONAL_COLLECT, "Write ack appended: " + ackPayload);
@@ -92,14 +181,14 @@ public class ConditionalCollect {
         return result;
     }
 
-    public String createAck(String value) {
+    public String createAck(EpochState value) {
         // Format as "membername: [value]"
         StringBuilder builder = new StringBuilder();
         builder.append(name).append(": [");
         
         // Add the value if it's not null
         if (value != null) {
-            builder.append(value);
+            builder.append(value.toString());
         }
         
         builder.append("]");
@@ -112,7 +201,13 @@ public class ConditionalCollect {
      * 
      * @param message The message to input
      */
-    public void input(String message) {
+    public void input(EpochState message) {
+
+        if (working) {
+            Logger.log(Logger.CONDITIONAL_COLLECT, "Conditional collect is already working, ignoring input");
+            return;
+        }
+
         try {
             // If this member is the leader
             if (memberManager.isLeader()) {
@@ -178,10 +273,12 @@ public class ConditionalCollect {
     private void waitForStates() {
         try {
             // Wait for all members to send their state
-            while ((collected.size() <= getQuorumSize() ) &&  timeout(7)) {
+            while ((!isCollected ) &&  timeout(7)) {
                 Thread.sleep(100);
                 System.out.println("Waiting for states");
                 Logger.log(Logger.CONDITIONAL_COLLECT, "current collected: " + createCollectedPayload(collected));
+                Logger.log(Logger.CONDITIONAL_COLLECT, "Quorum size: " + memberManager.getQuorumSize());
+                Logger.log(Logger.CONDITIONAL_COLLECT, "Collected size: " + collected.size());
             }
 
             if (isCollected) {
@@ -195,6 +292,7 @@ public class ConditionalCollect {
                 
             }
             else {
+                Logger.log(Logger.CONDITIONAL_COLLECT, "Timeout waiting for states");
                 abort(); // Send ABORT message to all members
             }
         } catch (Exception e) {
@@ -207,12 +305,12 @@ public class ConditionalCollect {
         Logger.log(Logger.CONDITIONAL_COLLECT, "Processing collected message: " + createCollectedPayload(collected));
         
         // Find the most frequent value and its count
-        Map<String, Integer> valueCounts = new HashMap<>();
-        String leaderValue = null;
+        Map<EpochState, Integer> valueCounts = new HashMap<>();
+        EpochState leaderValue = null;
         
-        for (Map.Entry<String, String> entry : collected.entrySet()) {
+        for (Map.Entry<String, EpochState> entry : collected.entrySet()) {
             String memberId = entry.getKey();
-            String value = entry.getValue();
+            EpochState value = entry.getValue();
             
             // Store leader's value separately
             if (memberId.equals(memberManager.getLeaderName())) {
@@ -225,11 +323,11 @@ public class ConditionalCollect {
         }
         
         // Check for quorum
-        int quorumSize = getQuorumSize();
+        int quorumSize = memberManager.getQuorumSize();
         boolean foundQuorum = false;
         
-        for (Map.Entry<String, Integer> entry : valueCounts.entrySet()) {
-            String value = entry.getKey();
+        for (Map.Entry<EpochState, Integer> entry : valueCounts.entrySet()) {
+            EpochState value = entry.getKey();
             int count = entry.getValue();
             
             if (count >= quorumSize) {
@@ -237,9 +335,9 @@ public class ConditionalCollect {
                 foundQuorum = true;
                 
                 // Check if quorum is for null (undefined state)
-                if (value == null || value.equals("null")) {
+                if (value == null || value.toString().equals("null")) {
                     // For null quorum, follow leader value logic
-                    if (leaderValue != null && !leaderValue.equals("null")) {
+                    if (leaderValue != null && !leaderValue.toString().equals("null")) {
                         Logger.log(Logger.CONDITIONAL_COLLECT, "Null Quorum found, adopting leader's value: " + leaderValue);
                         //adoptValue(leaderValue);
                         consensusLoop(leaderValue);
@@ -256,7 +354,7 @@ public class ConditionalCollect {
         
         // No quorum found, check leader's value
         if (!foundQuorum) {
-            if (leaderValue != null &&  !leaderValue.equals("null")) {
+            if (leaderValue != null &&  !leaderValue.toString().equals("null")) {
                 Logger.log(Logger.CONDITIONAL_COLLECT, "No quorum, adopting leader's value: " + leaderValue);
                 //adoptValue(leaderValue);
                 consensusLoop(leaderValue);
@@ -268,7 +366,7 @@ public class ConditionalCollect {
         }
     }
 
-    private void consensusLoop(String value) {
+    private void consensusLoop(EpochState value) {
         // Log the consensus value
         Logger.log(Logger.CONDITIONAL_COLLECT, "Consensus value: " + value);
         
@@ -287,18 +385,19 @@ public class ConditionalCollect {
         System.out.println("IM NOT BLOCKING -------------------");
     }
     
-    private void waitForWrite(String value) {
+    private void waitForWrite(EpochState value) {
         try {
             // Wait for enough write acknowledgments (quorum)
-            while ((writeAcks.size() < getQuorumSize()) && timeout(7)) {
+            while ((writeAcks.size() < memberManager.getQuorumSize())) {
                 Thread.sleep(100);
                 System.out.println("Waiting for write acknowledgments");
-                Logger.log(Logger.CONDITIONAL_COLLECT, "current write acks: " + writeAcks.size() + "/" + getQuorumSize());
+                Logger.log(Logger.CONDITIONAL_COLLECT, "current write acks: " + writeAcks.size() + "/" + memberManager.getQuorumSize());
             }
             
             // Check if we got enough acknowledgments
-            if (writeAcks.size() >= getQuorumSize()) {
+            if (checkAckQuorum(writeAcks)) {
                 Logger.log(Logger.CONDITIONAL_COLLECT, "Received sufficient write acknowledgments");
+                writeAcked = true;
                 
                 // Phase 2: Send ACCEPT messages to all members
                 for (String memberId : memberManager.getMemberLinks().keySet()) {
@@ -321,18 +420,20 @@ public class ConditionalCollect {
         }
     }
     
-    private void waitForAccept(String value) {
+    private void waitForAccept(EpochState value) {
         try {
             // Wait for enough accept acknowledgments (quorum)
-            while ((acceptAcks.size() < getQuorumSize()) && timeout(7)) {
+            Logger.log(Logger.CONDITIONAL_COLLECT, "------------- ACCEPT SIZE: " + acceptAcks.size() + " QUORUM SIZE: " + memberManager.getQuorumSize() + "----------");
+            while ((acceptAcks.size() < memberManager.getQuorumSize())) {
                 Thread.sleep(100);
                 System.out.println("Waiting for accept acknowledgments");
-                Logger.log(Logger.CONDITIONAL_COLLECT, "current accept acks: " + acceptAcks.size() + "/" + getQuorumSize());
+                Logger.log(Logger.CONDITIONAL_COLLECT, "current accept acks: " + acceptAcks.size() + "/" + memberManager.getQuorumSize());
             }
             
             // Check if we got enough acknowledgments
-            if (acceptAcks.size() >= getQuorumSize()) {
+            if (checkAckQuorum(acceptAcks)) {
                 Logger.log(Logger.CONDITIONAL_COLLECT, "Received sufficient accept acknowledgments");
+                acceptAcked = true;
                 
             // Phase 3: Decide the value
             Logger.log(Logger.CONDITIONAL_COLLECT, "Deciding value: " + value);
@@ -340,18 +441,27 @@ public class ConditionalCollect {
             writeAcks.clear();
             acceptAcks.clear();
             isCollected = false;
-            member.decide(value);
+            epochConsensus.decide(value);
 
             // Phase 4: Send DECIDE messages to all members
             // TODO - Confirm if thi is right
              for (String memberId : memberManager.getMemberLinks().keySet()) {
                 String payload = createAck(value);
                 memberManager.sendToMember(memberId, payload, "DECIDE");
+                writeAcked = false;
+                acceptAcked = false;
+                collected.clear();
+                writeAcks.clear();
+                acceptAcks.clear();
+                isCollected = false;
+                this.working = false;
+
             }
 
             } else {
-                abort();
                 Logger.log(Logger.CONDITIONAL_COLLECT, "Failed to receive sufficient accept acknowledgments");
+                abort();
+
             }
         } catch (Exception e) {
             Logger.log(Logger.CONDITIONAL_COLLECT, "Error waiting for accept acknowledgments: " + e.getMessage());
@@ -360,13 +470,13 @@ public class ConditionalCollect {
 
     /**
      * Creates a formatted string payload from the collected map
-     * @return String in format "key1: [value1], key2: [value2], ..."
+     * @return String in format "key1: [timestamp, value1], key2: [timestamp2, value2], ..."
      */
-    private String createCollectedPayload(Map<String, String> collected) {
+    private String createCollectedPayload(Map<String, EpochState> collected) {
         StringBuilder payload = new StringBuilder();
         boolean first = true;
         
-        for (Map.Entry<String, String> entry : collected.entrySet()) {
+        for (Map.Entry<String, EpochState> entry : collected.entrySet()) {
             if (!first) {
                 payload.append(", ");
             } else {
@@ -374,11 +484,16 @@ public class ConditionalCollect {
             }
             
             payload.append(entry.getKey())
-                .append(": [")
-                .append(entry.getValue())
-                .append("]");
+                .append(": [");
+                
+            // Check if the value is null
+            if (entry.getValue() != null) {
+                payload.append(entry.getValue().toString());
+            }
+            
+            payload.append("]");
         }
-
+        
         if (payload.toString().isEmpty()) {
             return memberManager.getName() + ": []";
         }
@@ -389,45 +504,70 @@ public class ConditionalCollect {
 
     /**
      * Parses a formatted collected payload back into a HashMap
-     * @param payload String in format "key1: [value1], key2: [value2], ..."
+     * @param payload String in format "key1: [timstamp1, value1], key2: [timestamp2, value2], ..."
      * @return HashMap containing the parsed key-value pairs
      */
-    private Map<String, String> parseCollectedPayload(String payload) {
-        Map<String, String> collected = new HashMap<>();
+    private Map<String, EpochState> parseCollectedPayload(String payload) {
+        Map<String, EpochState> collected = new HashMap<>();
+        Logger.log(Logger.CONDITIONAL_COLLECT, "Parsing collected payload: " + payload);
         
         // Handle empty payload
         if (payload == null || payload.trim().isEmpty()) {
             return collected;
         }
         
-        // Split the payload by comma followed by space
-        String[] entries = payload.split(", ");
-        
-        for (String entry : entries) {
-            // Find the position of ": [" which separates key from value
-            int separatorIndex = entry.indexOf(": [");
+        int startIdx = 0;
+        while (startIdx < payload.length()) {
+            // Find the key part
+            int keyEnd = payload.indexOf(": [", startIdx);
+            if (keyEnd == -1) break;
             
-            if (separatorIndex > 0) {
-                // Extract the key (everything before ": [")
-                String key = entry.substring(0, separatorIndex);
-                
-                // Extract the value (everything between "[" and "]")
-                int valueStartIndex = separatorIndex + 3; // Skip ": ["
-                int valueEndIndex = entry.lastIndexOf("]");
-                
-                // Handle the case where value is empty (null case)
-                if (valueEndIndex == valueStartIndex) {
-                    collected.put(key, null);
-                } else if (valueEndIndex > valueStartIndex) {
-                    String value = entry.substring(valueStartIndex, valueEndIndex);
-                    collected.put(key, value);
+            String key = payload.substring(startIdx, keyEnd);
+            
+            // Find the closing bracket that matches our opening bracket
+            int openBracket = keyEnd + 2; // position of '['
+            int closeBracket = openBracket + 1;
+            int bracketCount = 1;
+            
+            while (closeBracket < payload.length() && bracketCount > 0) {
+                if (payload.charAt(closeBracket) == '[') bracketCount++;
+                else if (payload.charAt(closeBracket) == ']') bracketCount--;
+                closeBracket++;
+            }
+            
+            if (bracketCount != 0) break; // Malformed input
+            
+            // Extract content between brackets
+            String content = payload.substring(openBracket + 1, closeBracket - 1);
+            
+            // Handle empty brackets
+            if (content.isEmpty()) {
+                collected.put(key, null);
+            } else {
+                // For non-empty content, find the first comma to separate timestamp and value
+                int firstComma = content.indexOf(", ");
+                if (firstComma != -1) {
+                    try {
+                        int timestamp = Integer.parseInt(content.substring(0, firstComma));
+                        String value = content.substring(firstComma + 2);
+                        collected.put(key, new EpochState(timestamp, value));
+                    } catch (NumberFormatException e) {
+                        Logger.log(Logger.CONDITIONAL_COLLECT, "Error parsing timestamp: " + e.getMessage());
+                    }
                 }
+            }
+            
+            // Move to next entry
+            startIdx = closeBracket;
+            // Skip comma and space if present
+            if (startIdx < payload.length() && payload.charAt(startIdx) == ',') {
+                startIdx += 2; // Skip ", "
             }
         }
         
+        Logger.log(Logger.CONDITIONAL_COLLECT, "Parsed collected payload: " + collected);
         return collected;
     }
-
     private void abort() {
         Logger.log(Logger.CONDITIONAL_COLLECT, "Aborting conditional collect");
         collected.clear();
@@ -437,10 +577,6 @@ public class ConditionalCollect {
         for (String member : memberManager.getMemberLinks().keySet()) {
             memberManager.sendToMember(member, "", "ABORT");
         }
-    }
-
-    private int getQuorumSize() {
-        return memberManager.getMemberLinks().size() / 2 + 1;
     }
 
     /**
