@@ -29,7 +29,6 @@ public class MemberRole implements Role {
                     case "COLLECTED":
                         handleCollectedMessage(message);
                         break;
-
                     case "WRITE":
                         System.out.println("Processing WRITE Message: " + message.getCommand() + " from " + sourceId);
                         handleAckMessage(message);
@@ -38,7 +37,6 @@ public class MemberRole implements Role {
                         System.out.println("Processing ACCEPT Message: " + message.getCommand() + " from " + sourceId);
                         handleAckMessage(message);
                         break;
-
                     case "READ":
                         System.out.println("Processing READ Message: " + message.getCommand() + " from " + sourceId);
                         handleProposeMessage(message);
@@ -86,5 +84,15 @@ public class MemberRole implements Role {
     public void handleAckMessage(Message message) {
         Logger.log(Logger.MEMBER, "Received ACK message: " + message.getPayload());
         member.getConditionalCollect().appendAck(message.getPayload(), message.getCommand());;
+    }
+
+    @Override
+    public void handleAbortMessage(Message message) {
+        Logger.log(Logger.MEMBER, "Received ABORT message");
+    }
+
+    @Override
+    public void handleDecideMessage(Message message) {
+        Logger.log(Logger.MEMBER, "Received DECIDE message");
     }
 }

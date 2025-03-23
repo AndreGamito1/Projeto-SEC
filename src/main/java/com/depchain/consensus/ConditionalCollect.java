@@ -342,6 +342,12 @@ public class ConditionalCollect {
             isCollected = false;
             member.decide(value);
 
+            // Phase 4: Send DECIDE messages to all members
+            // TODO - Confirm if thi is right
+             for (String memberId : memberManager.getMemberLinks().keySet()) {
+                String payload = createAck(value);
+                memberManager.sendToMember(memberId, payload, "DECIDE");
+            }
 
             } else {
                 abort();

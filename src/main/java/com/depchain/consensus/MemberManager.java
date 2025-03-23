@@ -121,6 +121,10 @@ public class MemberManager {
         }
     }
 
+    public int getQuorumSize(){ 
+       int quorumSize = (members.size() / 2) + 1;
+       return quorumSize;
+    }
 
     private List<String> JsonToList() {
         List<String> nodes = new ArrayList<>();

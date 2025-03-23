@@ -16,12 +16,19 @@ public class Member {
     private String name;
     private ConditionalCollect conditionalCollect;
     private List<String> blockchain;
+    private List<Message> quorumDecideMessages;
+    private List<Message> quorumAbortMessages;
+    private boolean working;
     
 
     public Member(String name) throws Exception {
         this.name = name; 
-        System.out.println("Member created: " + name);
         this.memberManager = new MemberManager(name);
+        this.working = false;
+        this.quorumAbortMessages = new ArrayList<>();
+        this.quorumDecideMessages = new ArrayList<>();
+        System.out.println("Member created: " + name);
+
         setupMemberLinks();
 
         if (memberManager.isLeader()) {
@@ -46,14 +53,28 @@ public class Member {
                     
                     // Only process messages if the list is not null
                     if (receivedMessages != null) {
+                        List<AuthenticatedMessage> proposeMessages = new ArrayList<>();
+                        
                         while (!receivedMessages.isEmpty()) {
                             AuthenticatedMessage message = receivedMessages.remove(0);
-                            System.out.println("Received message: " + message.getPayload());
-                            processMessage(link.getDestinationEntity(), message);
+                            
+                            if (working) {
+                                // Queue only PROPOSE messages
+                                if (message.getCommand().equals("PROPOSE")) {
+                                    proposeMessages.add(message);
+                                } else {
+                                    processMessage(link.getDestinationEntity(), message);
+                                }
+                            } else {
+                                // Process all messages from the receivedMessages list first
+                                processMessage(link.getDestinationEntity(), message);
+                            }
                         }
+                        
+                        // Add queued PROPOSE messages back to the end of the receivedMessages list
+                        receivedMessages.addAll(proposeMessages);
                     }
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
@@ -115,5 +136,48 @@ public class Member {
         blockchain.add(value);
         Logger.log(Logger.MEMBER, "Updated blockchain: " + blockchain);
     }
+
+    public void handleDecideMessage(AuthenticatedMessage message) throws Exception {
+        currentRole.handleDecideMessage(message);
+    }  
+    
+    public void handleAbortMessage(AuthenticatedMessage message) throws Exception {
+        currentRole.handleAbortMessage(message);
+    }   
+
+    public String getBlockchain() {
+        return blockchain.toString();
+    }
+    public List<Message> getQuorumDecideMessages() {
+        return quorumDecideMessages;
+    }
+    
+    public List<Message> getQuorumAbortMessages() {
+        return quorumAbortMessages;
+    }
+    
+
+    public void setWorking(boolean working) {
+        this.working = working;
+        Logger.log(Logger.MEMBER, "Working: " + working);
+    }
+
+
+    public int getQuorumSize() {
+        return memberManager.getQuorumSize();
+    }
+
+
+    public void insertMessageForTesting(String linkDestination, AuthenticatedMessage message) {
+        if (memberLinks.containsKey(linkDestination)) {
+            AuthenticatedPerfectLinks link = memberLinks.get(linkDestination);
+            List<AuthenticatedMessage> receivedMessages = link.getReceivedMessages();
+            receivedMessages.add(message);
+            System.out.println("Inserted message for testing: " + message.getPayload());
+        } else {
+            System.out.println("Link destination not found: " + linkDestination);
+        }
+    }
+
 
 }

@@ -13,4 +13,6 @@ public interface Role {
     void handleStateMessage(AuthenticatedMessage message) throws Exception;
     void handleProposeMessage(Message message) throws Exception;
     void handleAckMessage(Message message) throws Exception;
+    void handleDecideMessage(Message message) throws Exception;
+    void handleAbortMessage(Message message) throws Exception;
 }

@@ -6,7 +6,17 @@ import com.depchain.utils.*;
 public class Main {
 
     public static void main(String[] args) {
-        Logger.initFromArgs("--log=1,2,3,4,5,6"); 
+        StringBuilder logArgBuilder = new StringBuilder("--log=");
+         logArgBuilder//.append(Logger.STUBBORN_LINKS).append(",")
+                      .append(Logger.AUTH_LINKS).append(",")
+                      .append(Logger.LEADER_ERRORS).append(",")
+                      .append(Logger.CLIENT_LIBRARY).append(",")
+                      .append(Logger.MEMBER).append(",")
+                      .append(Logger.CONDITIONAL_COLLECT).append(",")
+                      .append(Logger.EPOCH_CONSENSUS);
+        String logArg = logArgBuilder.toString();
+        Logger.initFromArgs(logArg);
+
         if (args.length < 1) {
             System.out.println("Please provide a member name as an argument.");
             return;

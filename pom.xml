@@ -83,7 +83,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.depchain.consensus.main</mainClass>
+                            <mainClass>com.depchain.consensus.Main</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
