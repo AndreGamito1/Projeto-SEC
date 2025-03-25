@@ -81,24 +81,6 @@ public class MemberManager {
         }
     }
 
-    public void clientLibrarySetup() {
-        try {
-            int currentLocalPort = 15000;
-            for (String member : members) {
-                if (!member.equals(this.name)) {
-                        int remotePort = memberPorts.get(member);     
-                        Logger.log(Logger.MEMBER, "Setting up link to " + member + " on port " + remotePort + "from port " + currentLocalPort);
-                        memberLinks.put(member, new AuthenticatedPerfectLinks("localhost", remotePort, currentLocalPort, member, 
-                        keyManager.getPublicKey(member),
-                        keyManager.getPrivateKey(this.name)));
-                        currentLocalPort++;
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
     /**
      * Sends a message to a specific member.
      * 

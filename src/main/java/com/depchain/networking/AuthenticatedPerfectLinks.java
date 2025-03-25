@@ -88,6 +88,7 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
     public void receiveMessage(AuthenticatedMessage authMessage) throws Exception {
         try {
             Logger.log(Logger.AUTH_LINKS, "Received authenticated message ID: " + authMessage.getMessageID());
+            Logger.log(Logger.AUTH_LINKS, "From: " + destinationEntity);
             
             // First check if this is a duplicate message
             for (AuthenticatedMessage receivedMessage : received) {
@@ -114,6 +115,7 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
                     
                     // Add to received messages
                     received.add(processedMessage); // Store original message to prevent duplicates
+                    Logger.log(Logger.AUTH_LINKS, "Received message added to buffer: " + processedMessage.getCommand());
                 } catch (Exception e) {
                     Logger.log(Logger.AUTH_LINKS, "Decryption failed: " + e.getMessage());
                     throw e;

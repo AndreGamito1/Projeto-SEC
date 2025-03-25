@@ -53,26 +53,11 @@ public class Member {
                     
                     // Only process messages if the list is not null
                     if (receivedMessages != null) {
-                        List<AuthenticatedMessage> proposeMessages = new ArrayList<>();
-                        
+
                         while (!receivedMessages.isEmpty()) {
                             AuthenticatedMessage message = receivedMessages.remove(0);
-                            
-                            if (working) {
-                                // Queue only PROPOSE messages
-                                if (message.getCommand().equals("PROPOSE")) {
-                                    proposeMessages.add(message);
-                                } else {
-                                    processMessage(link.getDestinationEntity(), message);
-                                }
-                            } else {
-                                // Process all messages from the receivedMessages list first
-                                processMessage(link.getDestinationEntity(), message);
-                            }
+                            processMessage(link.getDestinationEntity(), message);
                         }
-                        
-                        // Add queued PROPOSE messages back to the end of the receivedMessages list
-                        receivedMessages.addAll(proposeMessages);
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
