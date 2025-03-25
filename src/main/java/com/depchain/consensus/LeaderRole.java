@@ -23,6 +23,7 @@ public class LeaderRole implements Role {
             Thread.currentThread().interrupt();
             System.err.println("Sleep interrupted: " + e.getMessage());
         }
+
     }
 
     @Override

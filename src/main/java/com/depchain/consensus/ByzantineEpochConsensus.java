@@ -47,6 +47,7 @@ public class ByzantineEpochConsensus {
 
     public void handleProposeMessage(Message message) {
         int currentTimestamp = epochState.getTimeStamp();
+        Logger.log(Logger.MEMBER, "Current timestamp: " + currentTimestamp);
         int nextTimestamp;
         nextTimestamp = currentTimestamp + 1;
         String value = message.getPayload();
@@ -66,6 +67,7 @@ public class ByzantineEpochConsensus {
     public void decide(EpochState value){
         Logger.log(Logger.MEMBER, "Deciding on value: " + value);
         member.addToBlockchain(value);
+        setState(value);
     }
 
 
