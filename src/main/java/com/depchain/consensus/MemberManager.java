@@ -63,8 +63,12 @@ public class MemberManager {
     public void setupMemberLinks() throws Exception {
         members = JsonToList();
         System.out.println("Members: " + members);
+        int currentLocalPort = clientLibraryPort;
         // Set up links to each member
-        int currentLocalPort = memberPorts.get(this.name);
+        if (!name.equals("clientLibrary")) {
+            currentLocalPort = memberPorts.get(this.name);
+        }
+
         for (String member : members) {
             if (!member.equals(this.name)) {
                     int remotePort = memberPorts.get(member);     
@@ -73,9 +77,27 @@ public class MemberManager {
                     keyManager.getPublicKey(member),
                     keyManager.getPrivateKey(this.name)));
                     currentLocalPort++;
-                }
             }
         }
+    }
+
+    public void clientLibrarySetup() {
+        try {
+            int currentLocalPort = 15000;
+            for (String member : members) {
+                if (!member.equals(this.name)) {
+                        int remotePort = memberPorts.get(member);     
+                        Logger.log(Logger.MEMBER, "Setting up link to " + member + " on port " + remotePort + "from port " + currentLocalPort);
+                        memberLinks.put(member, new AuthenticatedPerfectLinks("localhost", remotePort, currentLocalPort, member, 
+                        keyManager.getPublicKey(member),
+                        keyManager.getPrivateKey(this.name)));
+                        currentLocalPort++;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
     /**
      * Sends a message to a specific member.

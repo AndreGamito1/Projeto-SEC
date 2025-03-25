@@ -23,33 +23,6 @@ public class LeaderRole implements Role {
             Thread.currentThread().interrupt();
             System.err.println("Sleep interrupted: " + e.getMessage());
         }
-
-        Thread thread = new Thread(() -> {
-            try {
-                Message message = new Message("genesis", "PROPOSE");
-                AuthenticatedMessage authenticatedMessage = new AuthenticatedMessage(message, "genesis");
-                Logger.log(Logger.LEADER_ERRORS, "Proposing GENESIS message: " + message.getPayload());
-                handleProposeMessage(message);
-
-                Thread.sleep(100);
-                Message message2 = new Message("eren", "PROPOSE");
-                Logger.log(Logger.LEADER_ERRORS, "Proposing Eren message: " + message2.getPayload());
-                handleProposeMessage(message2);
-
-                Thread.sleep(100);
-                Message message3 = new Message("yeager", "PROPOSE");
-                Logger.log(Logger.LEADER_ERRORS, "Proposing Yeager message: " + message3.getPayload());
-                handleProposeMessage(message3);
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                System.err.println("Sleep interrupted: " + e.getMessage());
-            }
-        });
-
-        // Start the thread
-        thread.start();
-        System.out.println("Saiiiiiiiii");
     }
 
     @Override

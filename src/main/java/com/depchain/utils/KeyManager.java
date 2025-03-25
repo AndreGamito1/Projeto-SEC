@@ -30,7 +30,8 @@ public class KeyManager {
     private static final String KEYS_FILE = "src/main/resources/setup.json";
     private Map<String, PublicKey> publicKeys = new HashMap<>();        //Holds the RSA Public Key for each member connection
     private Map<String, PrivateKey> privateKeys = new HashMap<>();      //Holds the RSA Private Key for each member connection
-    private Map<String, SecretKey> memberKeys = new HashMap<>();        //Holds the AES Key for each member connection 
+    private PublicKey clientLibraryPublicKey = null;
+    private PrivateKey clientLibraryPrivateKey = null;
     private String entityName;
 
 
@@ -62,15 +63,15 @@ public class KeyManager {
             new File("src/main/resources/priv_keys").mkdirs();
             new File("src/main/resources/pub_keys").mkdirs();
 
-            // Generate RSA key pair with explicit key size (2048 bits recommended)
+            // Generate RSA key pair with explicit key size 
             KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
-            keyGen.initialize(2048); // Explicitly set key size to 2048 bits
+            keyGen.initialize(2048);
             
             KeyPair pair = keyGen.generateKeyPair();
             PrivateKey privateKey = pair.getPrivate();
             PublicKey publicKey = pair.getPublic();
 
-            // Log key details for debugging
+            // Log key details
             Logger.log(Logger.AUTH_LINKS, "Generated RSA key pair for " + entityName);
             Logger.log(Logger.AUTH_LINKS, "  Public key format: " + publicKey.getFormat());
             Logger.log(Logger.AUTH_LINKS, "  Public key algorithm: " + publicKey.getAlgorithm());
@@ -86,7 +87,6 @@ public class KeyManager {
             return false;
         }
     }
-
 
     /**
      * Waits until all keys exist in setup.json before proceeding.
@@ -113,7 +113,7 @@ public class KeyManager {
             boolean allKeysExist = true;
 
             for (String entity : setupJson.keySet()) {
-                if (entity.equals("clientLibrary") || entity.equals("leader")) {
+                if (entity.equals("leader")) {
                     continue; 
                 }
                 Object entityKeysObj = setupJson.get(entity);
@@ -223,22 +223,31 @@ public class KeyManager {
 
         // Load keys for all entities
         for (String entity : setupJson.keySet()) {
-            if (entity.equals("clientLibrary") || entity.equals("leader")) {
+            if (entity.equals("leader")) {
                 continue; 
             }
             JSONObject entityKeys = setupJson.getJSONObject(entity);
-         
-    
             if (!entityKeys.has("public") || !entityKeys.has("private")) {
                 throw new Exception("Invalid key format for " + entity + ": missing public or private key paths");
             }
 
+            // Load the keys
             String publicKeyPath = entityKeys.getString("public");
             String privateKeyPath = entityKeys.getString("private");
-
             PublicKey publicKey = loadPublicKeyFromFile(publicKeyPath);
-            publicKeys.put(entity, publicKey);
 
+            // Store client library keys separately
+            if (entity.equals("clientLibrary")) {
+                clientLibraryPublicKey = publicKey;
+                if (entity.equals(entityName)) {
+                    PrivateKey privateKey = loadPrivateKeyFromFile(privateKeyPath);
+                    clientLibraryPrivateKey = privateKey;
+                }
+                continue;
+            }
+    
+            // Store the keys 
+            publicKeys.put(entity, publicKey);
             if (entity.equals(entityName)) {
                 PrivateKey privateKey = loadPrivateKeyFromFile(privateKeyPath);
                 privateKeys.put(entity, privateKey);
@@ -345,28 +354,5 @@ public class KeyManager {
     public PrivateKey getPrivateKey(String entityName) {
         return privateKeys.get(entityName);
     }
-
-    public void storeAesKey(String member, SecretKey aesKey) {
-        memberKeys.put(member, aesKey);
-    }
-
-    public void handleNewKey(String sourceMember, Message message) {
-        try {
-            String encryptedKey = message.getPayload();        
-            PrivateKey privateKey = getPrivateKey(sourceMember); 
-            String decryptedKey = Encryption.decryptWithRsa(encryptedKey, privateKey);
-            SecretKey aesKey = Encryption.stringToAesKey(decryptedKey);
-            storeAesKey(sourceMember, aesKey);        
-        } catch (Exception e) {
-            e.printStackTrace();
-    }
 }
 
-    public SecretKey getAESKey(String memberName) {
-        return memberKeys.get(memberName);
-    }
-
-    public boolean hasAESKey(String memberName) {
-        return memberKeys.containsKey(memberName);
-    }
-}
