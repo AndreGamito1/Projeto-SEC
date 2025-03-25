@@ -27,7 +27,6 @@ public class LeaderRole implements Role {
         Thread thread = new Thread(() -> {
             try {
                 Message message = new Message("genesis", "PROPOSE");
-                AuthenticatedMessage authenticatedMessage = new AuthenticatedMessage(message, "genesis");
                 Logger.log(Logger.LEADER_ERRORS, "Proposing GENESIS message: " + message.getPayload());
                 handleProposeMessage(message);
 

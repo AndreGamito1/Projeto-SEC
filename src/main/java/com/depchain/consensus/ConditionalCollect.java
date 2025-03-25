@@ -226,7 +226,7 @@ public class ConditionalCollect {
                 
                 // Start waitForCollected in a new thread
                 Thread collectionThread = new Thread(() -> {
-                    waitForCollected();
+                    waitForStates();
                 });
                 collectionThread.start();
             }
@@ -238,50 +238,31 @@ public class ConditionalCollect {
 
     }
 
-
-    private void waitForCollected() {
-        try {
-            // Wait for leader to send the collected message
-            while (!isCollected && timeout(7)) {
-                Thread.sleep(1000);
-                System.out.println("Waiting for collected message");
-                Logger.log(Logger.CONDITIONAL_COLLECT, "current collected: " + createCollectedPayload(collected));
-            }
-
-            if (isCollected) {
-                Logger.log(Logger.CONDITIONAL_COLLECT, "Collected message received: " + createCollectedPayload(collected));
-                processCollected();
-            }
-            else {
-                Logger.log(Logger.CONDITIONAL_COLLECT, "Timeout waiting for collected message");
-                abort();
-            }
-
-        } catch (Exception e) {
-            Logger.log(Logger.CONDITIONAL_COLLECT, "Error waiting for collected message: " + e.getMessage());
-        }
-            
-    }
-
     private void waitForStates() {
         try {
             // Wait for all members to send their state
-            while ((!isCollected ) &&  timeout(7)) {
-                Thread.sleep(100);
-                System.out.println("Waiting for states");
+            for (int i = 0; i < 10; i++) {
+                Thread.sleep(1000);
+                if (isCollected) { break; }
                 Logger.log(Logger.CONDITIONAL_COLLECT, "current collected: " + createCollectedPayload(collected));
                 Logger.log(Logger.CONDITIONAL_COLLECT, "Quorum size: " + memberManager.getQuorumSize());
                 Logger.log(Logger.CONDITIONAL_COLLECT, "Collected size: " + collected.size());
             }
 
             if (isCollected) {
-                // Send to all members
-                String collectedPayload = createCollectedPayload(collected);
-                for (String member : memberManager.getMemberLinks().keySet()) {
-                    memberManager.sendToMember(member, collectedPayload, "COLLECTED");
-                }
-                processCollected();
 
+                if (memberManager.isLeader()){
+                    // Send to all members
+                    String collectedPayload = createCollectedPayload(collected);
+                    for (String member : memberManager.getMemberLinks().keySet()) {
+                        memberManager.sendToMember(member, collectedPayload, "COLLECTED");
+                    }
+                    processCollected();
+                }
+                else {
+                    Logger.log(Logger.CONDITIONAL_COLLECT, "Collected message received: " + createCollectedPayload(collected));
+                    processCollected();
+                }
                 
             }
             else {
