@@ -3,12 +3,16 @@ package com.depchain.consensus;
 import com.depchain.utils.Logger;
 import com.depchain.networking.Message;
 import com.depchain.networking.AuthenticatedMessage;
+import java.util.LinkedList;
+import java.util.Queue;
 
 public class LeaderRole implements Role {
     private Member member;
+    private Queue<Message> messageQueue;
 
     public LeaderRole(Member member) {
         this.member = member;
+        this.messageQueue = new LinkedList<>();
     }
 
     @Override
@@ -27,15 +31,15 @@ public class LeaderRole implements Role {
                 Logger.log(Logger.LEADER_ERRORS, "Proposing GENESIS message: " + message.getPayload());
                 handleProposeMessage(message);
 
+                Thread.sleep(100);
                 Message message2 = new Message("eren", "PROPOSE");
-                AuthenticatedMessage authenticatedMessage2 = new AuthenticatedMessage(message2, "eren");
                 Logger.log(Logger.LEADER_ERRORS, "Proposing Eren message: " + message2.getPayload());
-                member.insertMessageForTesting("member2", authenticatedMessage2);
+                handleProposeMessage(message2);
 
+                Thread.sleep(100);
                 Message message3 = new Message("yeager", "PROPOSE");
-                AuthenticatedMessage authenticatedMessage3 = new AuthenticatedMessage(message3, "yeager");
                 Logger.log(Logger.LEADER_ERRORS, "Proposing Yeager message: " + message3.getPayload());
-                member.insertMessageForTesting("member3", authenticatedMessage3);
+                handleProposeMessage(message3);
                 Thread.sleep(100);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -45,8 +49,7 @@ public class LeaderRole implements Role {
 
         // Start the thread
         thread.start();
-            System.out.println("Saiiiiiiiii");
-
+        System.out.println("Saiiiiiiiii");
     }
 
     @Override
@@ -78,7 +81,6 @@ public class LeaderRole implements Role {
             default:
                 System.out.println("Unknown command: " + message.getCommand());
                 break;
-
         }
     }
 
@@ -109,9 +111,17 @@ public class LeaderRole implements Role {
 
     @Override
     public void handleProposeMessage(Message message) {
-        Logger.log(Logger.LEADER_ERRORS,"PROPOSING MESSAGE ------------------------ " + message.getPayload());
-        member.setWorking(true);
-        member.getConsensus().handleProposeMessage(message);
+        Logger.log(Logger.LEADER_ERRORS, "PROPOSING MESSAGE ------------------------ " + message.getPayload());
+        
+        // If the member is already working on a message, queue this one
+        if (member.isWorking()) {
+            Logger.log(Logger.LEADER_ERRORS, "Already working on a message, queueing: " + message.getPayload());
+            messageQueue.add(message);
+        } else {
+            // Otherwise, start working on this message
+            member.setWorking(true);
+            member.getConsensus().handleProposeMessage(message);
+        }
     }
 
     @Override
@@ -123,12 +133,28 @@ public class LeaderRole implements Role {
     public void handleDecideMessage(Message message) {
         Logger.log(Logger.MEMBER, "Received DECIDE message: " + message.getPayload());
         member.getQuorumDecideMessages().add(message);
-        Logger.log(Logger.MEMBER,"Quorum size for DECIDE's: " + member.getQuorumSize());
+        Logger.log(Logger.MEMBER, "Quorum size for DECIDE's: " + member.getQuorumSize());
+        
         if (member.getQuorumDecideMessages().size() == member.getQuorumSize()) {
             Logger.log(Logger.MEMBER, "Received quorum of DECIDE messages");
-            member.setWorking(false);
+            
+            // Clear the decided messages
             member.getQuorumDecideMessages().clear();
-            Logger.log(Logger.LEADER_ERRORS, "BLOCKCHAIN: "+ member.getBlockchain());
+            Logger.log(Logger.LEADER_ERRORS, "BLOCKCHAIN: " + member.getBlockchain());
+            
+            // Check if there are any queued messages
+            if (!messageQueue.isEmpty()) {
+                // Take the next message from the queue and process it
+                Message nextMessage = messageQueue.poll();
+                Logger.log(Logger.LEADER_ERRORS, "Processing next queued message: " + nextMessage.getPayload());
+                
+                // Continue working on the next message
+                member.getConsensus().handleProposeMessage(nextMessage);
+            } else {
+                // No more messages to process, set working to false
+                member.setWorking(false);
+                Logger.log(Logger.LEADER_ERRORS, "No more messages in queue, setting working to false");
+            }
         }
     }
 
@@ -136,12 +162,33 @@ public class LeaderRole implements Role {
     public void handleAbortMessage(Message message) {
         Logger.log(Logger.MEMBER, "Received ABORT message: " + message.getPayload());
         member.getQuorumAbortMessages().add(message);
-        Logger.log(Logger.MEMBER,"Quorum size for ABORTS's: " + member.getQuorumSize());
+        Logger.log(Logger.MEMBER, "Quorum size for ABORTS's: " + member.getQuorumSize());
+        
         if (member.getQuorumAbortMessages().size() == member.getQuorumSize()) {
             Logger.log(Logger.MEMBER, "Received quorum of ABORT messages");
-            member.setWorking(false);
-            Logger.log(Logger.LEADER_ERRORS, "BLOCKCHAIN: "+ member.getBlockchain());
+            
+            // Clear the abort messages
+            member.getQuorumAbortMessages().clear();
+            Logger.log(Logger.LEADER_ERRORS, "BLOCKCHAIN: " + member.getBlockchain());
+            
+            // Check if there are any queued messages
+            if (!messageQueue.isEmpty()) {
+                // Take the next message from the queue and process it
+                Message nextMessage = messageQueue.poll();
+                Logger.log(Logger.LEADER_ERRORS, "Processing next queued message after ABORT: " + nextMessage.getPayload());
+                
+                // Continue working on the next message
+                member.getConsensus().handleProposeMessage(nextMessage);
+            } else {
+                // No more messages to process, set working to false
+                member.setWorking(false);
+                Logger.log(Logger.LEADER_ERRORS, "No more messages in queue after ABORT, setting working to false");
+            }
         }
     }
 
+    // Helper method to get the queue size (useful for testing/logging)
+    public int getQueueSize() {
+        return messageQueue.size();
+    }
 }

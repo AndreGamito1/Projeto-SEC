@@ -159,6 +159,11 @@ public class Member {
     
     public void startConsensus() {
         // If blockchain is empty, pass null or create an initial state
+        if(working) {
+            Logger.log(Logger.MEMBER, "Already working on consensus");
+            return;
+        }
+
         if (blockchain.isEmpty()) {
             this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, blockchain);
 
@@ -173,22 +178,12 @@ public class Member {
         Logger.log(Logger.MEMBER, "Working: " + working);
     }
 
+    public boolean isWorking() {
+        return working;
+    }
+
 
     public int getQuorumSize() {
         return memberManager.getQuorumSize();
     }
-
-
-    public void insertMessageForTesting(String linkDestination, AuthenticatedMessage message) {
-        if (memberLinks.containsKey(linkDestination)) {
-            AuthenticatedPerfectLinks link = memberLinks.get(linkDestination);
-            List<AuthenticatedMessage> receivedMessages = link.getReceivedMessages();
-            receivedMessages.add(message);
-            System.out.println("Inserted message for testing: " + message.getPayload());
-        } else {
-            System.out.println("Link destination not found: " + linkDestination);
-        }
-    }
-
-
 }

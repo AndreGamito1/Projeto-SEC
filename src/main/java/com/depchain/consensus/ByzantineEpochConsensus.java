@@ -9,7 +9,6 @@ import com.depchain.utils.*;
 public class ByzantineEpochConsensus {
     private ConditionalCollect conditionalCollect;
     private Member member;
-    private boolean working;
     private EpochState epochState;
     private List<EpochState> writeset = new ArrayList<>();
 
@@ -19,7 +18,6 @@ public class ByzantineEpochConsensus {
         this.member = member;
         this.epochState = epochState;
         this.writeset = writeset;
-        this.working = false;
         this.conditionalCollect = new ConditionalCollect(memberManager, this);
     }
 
@@ -27,7 +25,6 @@ public class ByzantineEpochConsensus {
         this.member = member;
         this.epochState = new EpochState(0, null);
         this.writeset = writeset;
-        this.working = false;
         this.conditionalCollect = new ConditionalCollect(memberManager, this);
     }
 
@@ -35,15 +32,7 @@ public class ByzantineEpochConsensus {
     public void start() {
         Logger.log(Logger.MEMBER, "Byzantine Epoch Consensus running!");
     }
-
-    public void setWorking(boolean state) {
-        working = state;
-    }
-
-    public boolean isWorking() {
-        return working;
-    }
-
+    
     public void setState(EpochState state) {
         epochState = state;
     }
@@ -57,15 +46,11 @@ public class ByzantineEpochConsensus {
     }
 
     public void handleProposeMessage(Message message) {
-        if(working) { 
-            Logger.log(Logger.EPOCH_CONSENSUS, "I AM WORKING I CANT HANDLE PROPOSE MESSAGE");
-            return ; }
         int currentTimestamp = epochState.getTimeStamp();
         int nextTimestamp;
         nextTimestamp = currentTimestamp + 1;
         String value = message.getPayload();
         EpochState proposedState = new EpochState(nextTimestamp, value);
-        setWorking(true);
         conditionalCollect.input(proposedState);
     }
 
@@ -80,7 +65,6 @@ public class ByzantineEpochConsensus {
 
     public void decide(EpochState value){
         Logger.log(Logger.MEMBER, "Deciding on value: " + value);
-        setWorking(false);
         member.addToBlockchain(value);
     }
 

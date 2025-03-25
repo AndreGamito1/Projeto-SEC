@@ -20,7 +20,6 @@ public class ConditionalCollect {
     private boolean acceptAcked = false;
     private final String name;
     private final ByzantineEpochConsensus epochConsensus;
-    private boolean working = false;
     
     /**
      * Creates a new ConditionalCollect instance
@@ -202,12 +201,6 @@ public class ConditionalCollect {
      * @param message The message to input
      */
     public void input(EpochState message) {
-
-        if (working) {
-            Logger.log(Logger.CONDITIONAL_COLLECT, "Conditional collect is already working, ignoring input");
-            return;
-        }
-
         try {
             // If this member is the leader
             if (memberManager.isLeader()) {
@@ -388,8 +381,9 @@ public class ConditionalCollect {
     private void waitForWrite(EpochState value) {
         try {
             // Wait for enough write acknowledgments (quorum)
-            while ((writeAcks.size() < memberManager.getQuorumSize())) {
-                Thread.sleep(100);
+            for (int i = 0; i < 10; i++) {
+                Thread.sleep(1000);
+                if (writeAcks.size() == memberManager.getQuorumSize()) { break; }
                 System.out.println("Waiting for write acknowledgments");
                 Logger.log(Logger.CONDITIONAL_COLLECT, "current write acks: " + writeAcks.size() + "/" + memberManager.getQuorumSize());
             }
@@ -424,8 +418,9 @@ public class ConditionalCollect {
         try {
             // Wait for enough accept acknowledgments (quorum)
             Logger.log(Logger.CONDITIONAL_COLLECT, "------------- ACCEPT SIZE: " + acceptAcks.size() + " QUORUM SIZE: " + memberManager.getQuorumSize() + "----------");
-            while ((acceptAcks.size() < memberManager.getQuorumSize())) {
-                Thread.sleep(100);
+            for (int i = 0; i < 10; i++) {
+                Thread.sleep(1000);
+                if (acceptAcks.size() == memberManager.getQuorumSize()) { break; }
                 System.out.println("Waiting for accept acknowledgments");
                 Logger.log(Logger.CONDITIONAL_COLLECT, "current accept acks: " + acceptAcks.size() + "/" + memberManager.getQuorumSize());
             }
@@ -454,8 +449,6 @@ public class ConditionalCollect {
                 writeAcks.clear();
                 acceptAcks.clear();
                 isCollected = false;
-                this.working = false;
-
             }
 
             } else {
@@ -568,6 +561,7 @@ public class ConditionalCollect {
         Logger.log(Logger.CONDITIONAL_COLLECT, "Parsed collected payload: " + collected);
         return collected;
     }
+    
     private void abort() {
         Logger.log(Logger.CONDITIONAL_COLLECT, "Aborting conditional collect");
         collected.clear();
