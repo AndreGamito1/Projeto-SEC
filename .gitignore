@@ -7,3 +7,4 @@ keys/server_public.key
 output/
 shared/resources.json
 *.pem
+target/
