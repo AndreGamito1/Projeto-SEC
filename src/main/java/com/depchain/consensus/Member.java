@@ -2,9 +2,12 @@ package com.depchain.consensus;
 
 import java.util.List;
 import java.util.Map;
+import java.io.IOException;
+import java.security.PublicKey;
 import java.util.ArrayList;
 import javax.crypto.SecretKey;
 
+import com.depchain.blockchain.WorldState;
 import com.depchain.networking.*;
 import com.depchain.utils.*;
 
@@ -20,7 +23,12 @@ public class Member {
     private List<Message> quorumAbortMessages;
     private boolean working;
     private ByzantineEpochConsensus epochConsensus;
-    
+
+     private WorldState worldState;
+
+     // Configuration file paths (consider making these constants or configurable)
+     private static final String GENESIS_ACCOUNTS_FILE_PATH = "src/main/resources/genesis_accounts.json";
+     private static final String GENESIS_BLOCK_RESOURCE_NAME = "genesisBlock.json"; // Classpath resource
 
     public Member(String name) throws Exception {
         this.name = name; 
@@ -31,7 +39,6 @@ public class Member {
         this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, blockchain);
         System.out.println("Member created: " + name);
 
-        setupMemberLinks();
 
         if (memberManager.isLeader()) {
             currentRole = new LeaderRole(this);
@@ -40,6 +47,45 @@ public class Member {
             currentRole = new MemberRole(this);
         }
         this.blockchain = new ArrayList<>();
+
+
+        try {
+            System.out.println("Member " + name + " is loading genesis world state...");
+
+            // 1. Create a new instance of GenesisKeyLoader
+            //  This will read genesis_accounts.json and load keys.
+            GenesisKeyLoader genesisKeyLoader = new GenesisKeyLoader(GENESIS_ACCOUNTS_FILE_PATH);
+
+            // 2. Get the Address -> PublicKey map from the loader instance
+            Map<String, PublicKey> genesisAddressMap = genesisKeyLoader.getGenesisAddressMap();
+
+            // Ensure genesisBlock.json is updated with addresses derived using the SAME logic!
+
+            // 3. Load the WorldState using the classpath resource name and the map
+            this.worldState = WorldState.loadFromGenesis(GENESIS_BLOCK_RESOURCE_NAME, genesisAddressMap);
+
+            System.out.println("Member " + name + " loaded genesis world state successfully.");
+
+
+            // --- Optional: Initialize the blockchain list with the Genesis Block ---
+            // Block genesisBlock = createGenesisBlockObject(this.worldState);
+            // if (genesisBlock != null) {
+            //     this.blockchain.add(genesisBlock);
+            // }
+
+        } catch (IOException e) {
+            System.err.println("FATAL: Member " + name + " could not load genesis files ("
+                             + GENESIS_ACCOUNTS_FILE_PATH + " or " + GENESIS_BLOCK_RESOURCE_NAME + "): " + e.getMessage());
+            throw new RuntimeException("Failed to load genesis configuration for member " + name, e); // Halt if fails
+        } catch (Exception e) { // Catch other potential errors from GenesisKeyLoader or WorldState.load
+            System.err.println("FATAL: Member " + name + " encountered an error during genesis initialization: " + e.getMessage());
+             // Re-throwing Exception as declared by the constructor
+             // or wrap in RuntimeException if you prefer unchecked exceptions here
+            throw e;
+        }
+
+
+        setupMemberLinks();
         start();
     }
 

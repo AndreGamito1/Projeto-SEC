@@ -1,0 +1,22 @@
+{
+    "genesis_addr_A1B2": {
+      "description": "Account corresponding to 0xA1B2... in genesis state (initial balance 200).",
+      "public_key_path": "src/main/resources/genesis_keys/pub/genesis_addr_A1B2_public.pem",
+      "private_key_path": "src/main/resources/genesis_keys/priv/genesis_addr_A1B2_private.pem"
+    },
+    "genesis_addr_1122": {
+      "description": "Account corresponding to 0x1122... in genesis state (initial balance 100).",
+      "public_key_path": "src/main/resources/genesis_keys/pub/genesis_addr_1122_public.pem",
+      "private_key_path": "src/main/resources/genesis_keys/priv/genesis_addr_1122_private.pem"
+    },
+    "genesis_addr_FEDC": {
+      "description": "Account corresponding to 0xFEDC... in genesis state (initial balance 100).",
+      "public_key_path": "src/main/resources/genesis_keys/pub/genesis_addr_FEDC_public.pem",
+      "private_key_path": "src/main/resources/genesis_keys/priv/genesis_addr_FEDC_private.pem"
+    },
+    "genesis_contract_owner": {
+      "description": "Account corresponding to 0xContractAddress... (likely owner/deployer) in genesis state.",
+      "public_key_path": "src/main/resources/genesis_keys/pub/genesis_contract_owner_public.pem",
+      "private_key_path": "src/main/resources/genesis_keys/priv/genesis_contract_owner_private.pem"
+    }
+  }

@@ -1,0 +1,24 @@
+{
+    "block_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "previous_block_hash": null,
+    "transactions": [],
+    "state": {
+        "0xA1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0": {
+            "balance": "200"
+        },
+        "0x11223344556677889900AABBCCDDEEFF11223344": {
+            "balance": "100"
+        },
+        "0xFEDCBA9876543210FEDCBA9876543210FEDCBA98": {
+            "balance": "100"
+        },
+        "0xContractAddress0123456789ABCDEF0123456789": {
+            "balance": "0",
+            "code": "0x60016002...",
+            "storage": {
+                "0xStorageKeyHex1": "0xStorageValueHex1",
+                "0xStorageKeyHex2": "0xStorageValueHex2"
+            }
+        }
+    }
+}
