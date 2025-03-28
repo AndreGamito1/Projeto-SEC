@@ -1,0 +1,22 @@
+{
+  "account_fdfe249c" : {
+    "address" : "0xFEDCBA9876543210FEDCBA9876543210FEDCBA98",
+    "public_key_path" : "generated_keys/account_e6700867.pub",
+    "private_key_path" : "generated_keys/account_e6700867.key"
+  },
+  "account_0e728137" : {
+    "address" : "0xA1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0",
+    "public_key_path" : "generated_keys/account_c6ac81e1.pub",
+    "private_key_path" : "generated_keys/account_c6ac81e1.key"
+  },
+  "account_ed83fbb2" : {
+    "address" : "0x11223344556677889900AABBCCDDEEFF11223344",
+    "public_key_path" : "generated_keys/account_c3d11bc5.pub",
+    "private_key_path" : "generated_keys/account_c3d11bc5.key"
+  },
+  "account_87282ed5" : {
+    "address" : "0xContractAddress0123456789ABCDEF0123456789",
+    "public_key_path" : "generated_keys/account_7301b4af.pub",
+    "private_key_path" : "generated_keys/account_7301b4af.key"
+  }
+}

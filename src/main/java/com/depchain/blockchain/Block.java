@@ -11,7 +11,6 @@ import java.util.ArrayList;
 public class Block {
 
     private int blockNumber;
-    private long timestamp;
     private String previousHash;
     private List<Transaction> transactions;
     private String blockHash;
@@ -20,14 +19,12 @@ public class Block {
      * Constructs a new Block object.
      *
      * @param blockNumber  The block number.
-     * @param timestamp    The timestamp of the block.
      * @param previousHash The hash of the previous block.
      * @param transactions The list of transactions in the block.
      * @param blockHash    The hash of the block.
      */
-    public Block(int blockNumber, long timestamp, String previousHash, List<Transaction> transactions, String blockHash) {
+    public Block(int blockNumber, String previousHash, List<Transaction> transactions, String blockHash) {
         this.blockNumber = blockNumber;
-        this.timestamp = timestamp;
         this.previousHash = previousHash;
         this.transactions = (transactions != null) ? new ArrayList<>(transactions) : new ArrayList<>(); // Defensive copy in constructor!  Handles null gracefully
         this.blockHash = blockHash;
@@ -50,24 +47,6 @@ public class Block {
      */
     public void setBlockNumber(int blockNumber) {
         this.blockNumber = blockNumber;
-    }
-
-    /**
-     * Returns the timestamp of the block.
-     *
-     * @return The timestamp.
-     */
-    public long getTimestamp() {
-        return timestamp;
-    }
-
-    /**
-     * Sets the timestamp of the block.
-     *
-     * @param timestamp The new timestamp.
-     */
-    public void setTimestamp(long timestamp) {
-        this.timestamp = timestamp;
     }
 
     /**
@@ -135,7 +114,6 @@ public class Block {
     public String toString() {
         return "Block{" +
                 "blockNumber=" + blockNumber +
-                ", timestamp=" + timestamp +
                 ", previousHash='" + previousHash + '\'' +
                 ", transactions=" + transactions +
                 ", blockHash='" + blockHash + '\'' +

@@ -1,213 +1,233 @@
 package com.depchain.blockchain;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.security.PublicKey;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
-/**
- * Represents the state of the world in a blockchain.
- * Manages a map of account states.
- */
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.UUID;
+
 public class WorldState {
+    private Map<String, AccountState> accounts;
+    private static final String GENESIS_BLOCK_PATH = "src/main/resources/genesisBlock.json";
+    private static final String ACCOUNTS_FILE_PATH = "src/main/resources/accounts.json";
+    private static final String KEYS_DIRECTORY = "src/main/resources/generated_keys";
 
-    private final Map<PublicKey, AccountState> accounts = new HashMap<>();
+    public WorldState() {
+        this.accounts = new HashMap<>();
+    }
 
-    /**
-     * Gets the account state for the given address.
-     *
-     * @param address The address of the account.
-     * @return The account state, or null if the account does not exist.
-     */
-    public AccountState getAccount(PublicKey address) {
+    public Map<String, AccountState> getAccounts() {
+        return accounts;
+    }
+
+    public AccountState getAccount(String address) {
         return accounts.get(address);
     }
 
-    /**
-     * Puts an account state into the world state.
-     *
-     * @param address      The address of the account.
-     * @param accountState The account state to put.
-     */
-    public void putAccount(PublicKey address, AccountState accountState) {
-        accounts.put(address, accountState);
+    public void addAccount(AccountState accountState) {
+        accounts.put(accountState.getAddress(), accountState);
     }
 
     /**
-     * Removes an account from the world state.
-     *
-     * @param address The address of the account to remove.
+     * Loads the genesis state from the genesisBlock.json file
+     * and initializes the WorldState with the account data.
      */
-    public void removeAccount(PublicKey address) {
-        accounts.remove(address);
-    }
-
-    /**
-     * Returns a copy of the underlying map of accounts in the world state.
-     *
-     * @return A copy of the accounts map.
-     */
-    public Map<PublicKey, AccountState> getAccounts() {
-        return new HashMap<>(accounts);
-    }
-
-    /**
-     * Loads the initial world state from a genesis JSON file located on the
-     * classpath.
-     *
-     * @param genesisResourcePath   The path to the genesis file within the
-     *                              classpath (e.g., "genesis.json").
-     * @param addressToPublicKeyMap A map to resolve string addresses from the JSON
-     *                              to PublicKey objects.
-     * @return A new WorldState instance initialized from the genesis file.
-     * @throws IOException      If the genesis file cannot be found or read.
-     * @throws RuntimeException If the JSON parsing fails or data is invalid.
-     */
-    public static WorldState loadFromGenesis(String genesisResourcePath, Map<String, PublicKey> addressToPublicKeyMap)
-            throws IOException {
-        Objects.requireNonNull(genesisResourcePath, "Genesis resource path cannot be null");
-        Objects.requireNonNull(addressToPublicKeyMap, "Address-to-PublicKey map cannot be null");
-
+    public void loadGenesisState() throws IOException {
         ObjectMapper mapper = new ObjectMapper();
-        WorldState genesisWorldState = new WorldState();
-
-        InputStream inputStream = WorldState.class.getClassLoader().getResourceAsStream(genesisResourcePath);
-        if (inputStream == null) {
-            throw new FileNotFoundException("Cannot find genesis file in classpath: " + genesisResourcePath);
+        
+        // Ensure the keys directory exists
+        File keysDir = new File(KEYS_DIRECTORY);
+        if (!keysDir.exists()) {
+            keysDir.mkdirs();
         }
-
-        try (inputStream) { 
-            TypeReference<Map<String, Object>> typeRef = new TypeReference<>() {
-            };
-            Map<String, Object> root = mapper.readValue(inputStream, typeRef);
-
-            @SuppressWarnings("unchecked") 
-            Map<String, Map<String, Object>> stateData = (Map<String, Map<String, Object>>) root.get("state");
-
-            if (stateData == null) {
-                throw new RuntimeException("Genesis JSON is missing the required 'state' object.");
-            }
-
-            // Iterate through each account defined in the "state"
-            for (Map.Entry<String, Map<String, Object>> entry : stateData.entrySet()) {
-                String addressString = entry.getKey();
-                Map<String, Object> accountData = entry.getValue();
-
-                // 1. Resolve PublicKey from the provided map
-                PublicKey publicKey = addressToPublicKeyMap.get(addressString);
-                if (publicKey == null) {
-                    System.err.println("Warning: Address '" + addressString
-                            + "' from genesis.json not found in the provided key map. Skipping account.");
-                    continue; // Skip this account if we can't find its PublicKey
-                }
-
-                // 2. Parse Balance (handle potential NumberFormatException)
-                double balance = 0;
-                try {
-                    balance = Double.parseDouble(Objects.toString(accountData.get("balance"), "0"));
-                } catch (NumberFormatException e) {
-                    throw new RuntimeException(
-                            "Invalid balance format for address '" + addressString + "' in genesis.json", e);
-                }
-
-                // 3. Parse Nonce (default to 0 if not specified)
-                long nonce = 0;
-                if (accountData.containsKey("nonce")) {
-                    Object nonceObj = accountData.get("nonce");
-                    try {
-                        if (nonceObj instanceof Number) {
-                            nonce = ((Number) nonceObj).longValue();
-                        } else if (nonceObj instanceof String) {
-                            nonce = Long.parseLong((String) nonceObj);
-                        } else if (nonceObj != null) {
-                            // Attempt toString() conversion for flexibility, though less robust
-                            nonce = Long.parseLong(nonceObj.toString());
-                        }
-                    } catch (NumberFormatException e) {
-                        System.err.println(
-                                "Warning: Invalid nonce format for address '" + addressString + "'. Using default 0.");
-                        // Keep nonce = 0
-                    }
-                }
-
-                // 4. Parse Contract Code (if present)
-                byte[] code = null;
-                if (accountData.containsKey("code")) {
-                    String codeHex = (String) accountData.get("code");
-                    if (codeHex != null && !codeHex.isEmpty()) {
-                        try {
-                            code = hexStringToByteArray(codeHex);
-                        } catch (IllegalArgumentException e) {
-                            throw new RuntimeException(
-                                    "Invalid hex format for 'code' for address '" + addressString + "'", e);
-                        }
-                    }
-                }
-
-                // 5. Parse Contract Storage (if present)
-                Map<String, String> storage = new HashMap<>();
-                if (accountData.containsKey("storage")) {
-                    @SuppressWarnings("unchecked") // Expecting Map<String, Object/String>
-                    Map<String, Object> storageData = (Map<String, Object>) accountData.get("storage");
-                    if (storageData != null) {
-                        for (Map.Entry<String, Object> storageEntry : storageData.entrySet()) {
-                            // Assuming storage values are expected to be strings
-                            if (storageEntry.getValue() != null) {
-                                storage.put(storageEntry.getKey(), storageEntry.getValue().toString());
-                            } else {
-                                storage.put(storageEntry.getKey(), null); // Or handle null values as needed
-                            }
-                        }
-                    }
-                }
-
-                // 6. Create AccountState object
-                AccountState accountState = new AccountState(publicKey, balance, nonce, code, storage);
-
-                // 7. Add to the WorldState
-                genesisWorldState.putAccount(publicKey, accountState);
-            }
-
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to parse genesis JSON from " + genesisResourcePath, e);
+        
+        // Load the accounts file if it exists
+        Map<String, AccountInfo> accountsMap = loadAccountsFile();
+        
+        // Load the genesis block
+        File genesisFile = new File(GENESIS_BLOCK_PATH);
+        if (!genesisFile.exists()) {
+            throw new IOException("Genesis block file not found at: " + GENESIS_BLOCK_PATH);
         }
-
-        return genesisWorldState;
+        
+        JsonNode rootNode = mapper.readTree(genesisFile);
+        JsonNode stateNode = rootNode.get("state");
+        
+        if (stateNode == null || !stateNode.isObject()) {
+            throw new IOException("Invalid genesis block format: 'state' field is missing or not an object");
+        }
+        
+        // Process each account in the genesis state
+        Iterator<Map.Entry<String, JsonNode>> fields = stateNode.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> entry = fields.next();
+            String address = entry.getKey();
+            JsonNode accountData = entry.getValue();
+            
+            // Get balance
+            String balance = "0";
+            if (accountData.has("balance")) {
+                balance = accountData.get("balance").asText();
+            }
+            
+            // Check if this account already exists in accounts.json
+            AccountInfo accountInfo = accountsMap.get(address);
+            
+            if (accountInfo == null) {
+                // Account doesn't exist in accounts.json, create new keys
+                accountInfo = generateNewAccountInfo(address);
+                accountsMap.put(address, accountInfo);
+            }
+            
+            // Create account state
+            AccountState accountState = new AccountState(
+                address,
+                accountInfo.publicKeyPath,
+                accountInfo.privateKeyPath,
+                balance
+            );
+            
+            // Add contract-specific data if present
+            if (accountData.has("code")) {
+                accountState.setCode(accountData.get("code").asText());
+                
+                if (accountData.has("storage") && accountData.get("storage").isObject()) {
+                    JsonNode storageNode = accountData.get("storage");
+                    Map<String, String> storage = new HashMap<>();
+                    
+                    Iterator<Map.Entry<String, JsonNode>> storageFields = storageNode.fields();
+                    while (storageFields.hasNext()) {
+                        Map.Entry<String, JsonNode> storageEntry = storageFields.next();
+                        storage.put(storageEntry.getKey(), storageEntry.getValue().asText());
+                    }
+                    
+                    accountState.setStorage(storage);
+                }
+            }
+            
+            // Add the account to the world state
+            addAccount(accountState);
+        }
+        
+        // Save updated accounts.json
+        saveAccountsFile(accountsMap);
     }
-
+    
     /**
-     * Helper utility to convert a hexadecimal string (optionally prefixed with
-     * "0x")
-     * to a byte array.
-     *
-     * @param hex The hexadecimal string.
-     * @return The corresponding byte array.
-     * @throws IllegalArgumentException if the string is not valid hex.
+     * Loads the accounts.json file into a map
      */
-    private static byte[] hexStringToByteArray(String hex) {
-        Objects.requireNonNull(hex, "Hex string cannot be null");
-        String cleanedHex = hex.startsWith("0x") ? hex.substring(2) : hex;
-
-        int len = cleanedHex.length();
-        if (len % 2 != 0) {
-            throw new IllegalArgumentException("Hex string must have an even number of characters: " + hex);
-        }
-        byte[] data = new byte[len / 2];
-        for (int i = 0; i < len; i += 2) {
-            try {
-                data[i / 2] = (byte) ((Character.digit(cleanedHex.charAt(i), 16) << 4)
-                        + Character.digit(cleanedHex.charAt(i + 1), 16));
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid hex character in string: " + hex, e);
+    private Map<String, AccountInfo> loadAccountsFile() throws IOException {
+        Map<String, AccountInfo> accountsMap = new HashMap<>();
+        File accountsFile = new File(ACCOUNTS_FILE_PATH);
+        
+        if (accountsFile.exists()) {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode rootNode = mapper.readTree(accountsFile);
+            
+            Iterator<Map.Entry<String, JsonNode>> fields = rootNode.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> entry = fields.next();
+                String accountId = entry.getKey();
+                JsonNode accountData = entry.getValue();
+                
+                String address = accountData.get("address").asText();
+                String publicKeyPath = accountData.get("public_key_path").asText();
+                String privateKeyPath = accountData.get("private_key_path").asText();
+                
+                AccountInfo accountInfo = new AccountInfo(publicKeyPath, privateKeyPath);
+                accountsMap.put(address, accountInfo);
             }
         }
-        return data;
+        
+        return accountsMap;
     }
-
+    
+    /**
+     * Saves the accounts map to accounts.json
+     */
+    private void saveAccountsFile(Map<String, AccountInfo> accountsMap) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode rootNode = mapper.createObjectNode();
+        
+        for (Map.Entry<String, AccountInfo> entry : accountsMap.entrySet()) {
+            String address = entry.getKey();
+            AccountInfo info = entry.getValue();
+            
+            // Generate a unique account ID (this would usually be more sophisticated)
+            String accountId = "account_" + UUID.randomUUID().toString().substring(0, 8);
+            
+            ObjectNode accountNode = mapper.createObjectNode();
+            accountNode.put("address", address);
+            accountNode.put("public_key_path", info.publicKeyPath);
+            accountNode.put("private_key_path", info.privateKeyPath);
+            
+            rootNode.set(accountId, accountNode);
+        }
+        
+        // Create parent directories if they don't exist
+        File accountsFile = new File(ACCOUNTS_FILE_PATH);
+        if (!accountsFile.getParentFile().exists()) {
+            accountsFile.getParentFile().mkdirs();
+        }
+        
+        // Write to file with pretty printing
+        mapper.writerWithDefaultPrettyPrinter().writeValue(accountsFile, rootNode);
+    }
+    
+    /**
+     * Generates new key pair for an account and saves them to files
+     */
+    private AccountInfo generateNewAccountInfo(String address) throws IOException {
+        try {
+            // Generate a unique account ID
+            String accountId = "account_" + UUID.randomUUID().toString().substring(0, 8);
+            
+            // Create key file paths
+            String publicKeyPath = KEYS_DIRECTORY + "/" + accountId + ".pub";
+            String privateKeyPath = KEYS_DIRECTORY + "/" + accountId + ".key";
+            
+            // Generate key pair
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+            keyGen.initialize(2048, new SecureRandom());
+            KeyPair keyPair = keyGen.generateKeyPair();
+            
+            // Save public key
+            String publicKeyEncoded = Base64.getEncoder().encodeToString(keyPair.getPublic().getEncoded());
+            Files.write(Paths.get(publicKeyPath), publicKeyEncoded.getBytes());
+            
+            // Save private key
+            String privateKeyEncoded = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
+            Files.write(Paths.get(privateKeyPath), privateKeyEncoded.getBytes());
+            
+            return new AccountInfo(publicKeyPath, privateKeyPath);
+            
+        } catch (NoSuchAlgorithmException e) {
+            throw new IOException("Failed to generate keys: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Helper class to store account key information
+     */
+    private static class AccountInfo {
+        String publicKeyPath;
+        String privateKeyPath;
+        
+        public AccountInfo(String publicKeyPath, String privateKeyPath) {
+            this.publicKeyPath = publicKeyPath;
+            this.privateKeyPath = privateKeyPath;
+        }
+    }
 }

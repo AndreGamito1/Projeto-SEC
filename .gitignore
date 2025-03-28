@@ -10,3 +10,4 @@ shared/resources.json
 target/
 target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst
 target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst
+src/main/resources/generated_keys/

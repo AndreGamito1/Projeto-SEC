@@ -7,9 +7,9 @@ import java.security.PublicKey;
 import java.util.ArrayList;
 import javax.crypto.SecretKey;
 
-import com.depchain.blockchain.WorldState;
 import com.depchain.networking.*;
 import com.depchain.utils.*;
+import com.depchain.blockchain.*;
 
 public class Member {
     private Role currentRole;
@@ -19,6 +19,7 @@ public class Member {
     private String name;
 
     private List<EpochState> blockchain;
+    private List<Block> new_blockchain;
     private List<Message> quorumDecideMessages;
     private List<Message> quorumAbortMessages;
     private boolean working;
@@ -28,7 +29,7 @@ public class Member {
 
      // Configuration file paths (consider making these constants or configurable)
      private static final String GENESIS_ACCOUNTS_FILE_PATH = "src/main/resources/genesis_accounts.json";
-     private static final String GENESIS_BLOCK_RESOURCE_NAME = "genesisBlock.json"; // Classpath resource
+     private static final String GENESIS_BLOCK_RESOURCE_NAME = "src/main/resources/genesisBlock.json"; // Classpath resource
 
     public Member(String name) throws Exception {
         this.name = name; 
@@ -37,6 +38,7 @@ public class Member {
         this.quorumAbortMessages = new ArrayList<>();
         this.quorumDecideMessages = new ArrayList<>();
         this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, blockchain);
+        this.new_blockchain = new ArrayList<>();
         System.out.println("Member created: " + name);
 
 
@@ -52,26 +54,24 @@ public class Member {
         try {
             System.out.println("Member " + name + " is loading genesis world state...");
 
-            // 1. Create a new instance of GenesisKeyLoader
-            //  This will read genesis_accounts.json and load keys.
-            GenesisKeyLoader genesisKeyLoader = new GenesisKeyLoader(GENESIS_ACCOUNTS_FILE_PATH);
-
-            // 2. Get the Address -> PublicKey map from the loader instance
-            Map<String, PublicKey> genesisAddressMap = genesisKeyLoader.getGenesisAddressMap();
-
-            // Ensure genesisBlock.json is updated with addresses derived using the SAME logic!
-
-            // 3. Load the WorldState using the classpath resource name and the map
-            this.worldState = WorldState.loadFromGenesis(GENESIS_BLOCK_RESOURCE_NAME, genesisAddressMap);
-
-            System.out.println("Member " + name + " loaded genesis world state successfully.");
+            // Load the WorldState using the classpath resource name and the map
+            WorldState worldState = new WorldState();
+            worldState.loadGenesisState();
+            
+            // Print loaded accounts
+            System.out.println("Loaded accounts from genesis block:");
+            for (AccountState account : worldState.getAccounts().values()) {
+                System.out.println(account);
+            }
 
 
             // --- Optional: Initialize the blockchain list with the Genesis Block ---
-            // Block genesisBlock = createGenesisBlockObject(this.worldState);
-            // if (genesisBlock != null) {
-            //     this.blockchain.add(genesisBlock);
-            // }
+            Block genesisBlock = createGenesisBlockObject(this.worldState);
+            if (genesisBlock != null) {
+                this.new_blockchain.add(genesisBlock);
+            }
+
+            System.out.println("Blockchain state: " + this.new_blockchain);
 
         } catch (IOException e) {
             System.err.println("FATAL: Member " + name + " could not load genesis files ("
@@ -87,6 +87,15 @@ public class Member {
 
         setupMemberLinks();
         start();
+    }
+
+    private Block createGenesisBlockObject(WorldState worldState) {
+        int blockNumber = 0; // Genesis block number
+        String previousHash = "0"; // No previous hash for the genesis block
+        List<Transaction> transactions = new ArrayList<>(); // No transactions in the genesis block
+        String blockHash = "genesis_hash"; // Placeholder hash
+
+        return new Block(blockNumber, previousHash, transactions, blockHash);
     }
 
 

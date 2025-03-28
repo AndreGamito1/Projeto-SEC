@@ -1,22 +1,20 @@
 {
-    "genesis_addr_A1B2": {
-      "description": "Account corresponding to 0xA1B2... in genesis state (initial balance 200).",
-      "public_key_path": "src/main/resources/genesis_keys/pub/genesis_addr_A1B2_public.pem",
-      "private_key_path": "src/main/resources/genesis_keys/priv/genesis_addr_A1B2_private.pem"
-    },
-    "genesis_addr_1122": {
-      "description": "Account corresponding to 0x1122... in genesis state (initial balance 100).",
-      "public_key_path": "src/main/resources/genesis_keys/pub/genesis_addr_1122_public.pem",
-      "private_key_path": "src/main/resources/genesis_keys/priv/genesis_addr_1122_private.pem"
-    },
-    "genesis_addr_FEDC": {
-      "description": "Account corresponding to 0xFEDC... in genesis state (initial balance 100).",
-      "public_key_path": "src/main/resources/genesis_keys/pub/genesis_addr_FEDC_public.pem",
-      "private_key_path": "src/main/resources/genesis_keys/priv/genesis_addr_FEDC_private.pem"
-    },
-    "genesis_contract_owner": {
-      "description": "Account corresponding to 0xContractAddress... (likely owner/deployer) in genesis state.",
-      "public_key_path": "src/main/resources/genesis_keys/pub/genesis_contract_owner_public.pem",
-      "private_key_path": "src/main/resources/genesis_keys/priv/genesis_contract_owner_private.pem"
-    }
+  "account_62e82aa4": {
+    "public_key_path": "generated_keys/account_62e82aa4.pub",
+    "derived_address": "0xf1d7c9b6efc5abae412ab378802adbce2daee72f49b9d884a871d0d5e411d573",
+    "address": "0xFEDCBA9876543210FEDCBA9876543210FEDCBA98",
+    "private_key_path": "generated_keys/account_62e82aa4.key"
+  },
+  "account_f816eac9": {
+    "public_key_path": "generated_keys/account_f816eac9.pub",
+    "derived_address": "0x9e696f9b9e7394c2c275df4a5c4966687af0b4249b1bb30e45ef48f1c068c371",
+    "address": "0x11223344556677889900AABBCCDDEEFF11223344",
+    "private_key_path": "generated_keys/account_f816eac9.key"
+  },
+  "account_c3ff022c": {
+    "public_key_path": "generated_keys/account_c3ff022c.pub",
+    "derived_address": "0xc62c776386d604437c4777145219b6e19f09592d4455c5ff232d5cb037d89f92",
+    "address": "0xA1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0",
+    "private_key_path": "generated_keys/account_c3ff022c.key"
   }
+}

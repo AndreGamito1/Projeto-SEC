@@ -9,10 +9,8 @@
 #### Main
 - ~~Criar Block.java, Transaction.java, WorldState.java e AccountState.java~~
 
-- Implementar o genesisBlock.json 
-  - Nomes, dinheiro iniciasl, etc, definidos nesse bloco para cada conta.
+- ~~Implementar o genesisBlock.json~~
 
-  - O nosso codigo tem de ler e conseguir recriar o worldState inicial a partir disso (ou seja, criar todos os accountStates).
 
 #### Client
 - Criar "See Balance": 
