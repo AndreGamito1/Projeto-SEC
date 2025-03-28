@@ -1,77 +1,51 @@
-param (
-    [int]$HttpPort = 8080,
-    [int]$NumClients = 2,
-    [switch]$RestApiOnly = $false
-)
+# Clear the files in the key directories
+Remove-Item -Path "src\main\resources\priv_keys\*" -Force -Recurse -ErrorAction SilentlyContinue
+Remove-Item -Path "src\main\resources\pub_keys\*" -Force -Recurse -ErrorAction SilentlyContinue
 
-$actualHttpPort = $HttpPort + 1
+# Array of member names
+$members = @("member1", "member2", "member3", "member4")
 
-Write-Host "Starting Byzantine Blockchain System..." -ForegroundColor Green
-Write-Host "REST API will be available at: http://localhost:$actualHttpPort/blockchain/"
-
-# Clean key folders before initialization
-Write-Host "Cleaning key folders..." -ForegroundColor Cyan
-if (Test-Path "shared/priv_keys") {
-    Remove-Item -Path "shared/priv_keys/*" -Force -Recurse -ErrorAction SilentlyContinue
-}
-if (Test-Path "shared/pub_keys") {
-    Remove-Item -Path "shared/pub_keys/*" -Force -Recurse -ErrorAction SilentlyContinue
-}
-# Ensure directories exist
-New-Item -ItemType Directory -Path "shared/priv_keys" -Force | Out-Null
-New-Item -ItemType Directory -Path "shared/pub_keys" -Force | Out-Null
-
-# 1. Start Leader
-Write-Host "Starting Leader process..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Starting Leader...' -ForegroundColor Yellow; mvn exec:java '-Dexec.mainClass=com.depchain.consensus.Leader'"
-
-# Wait for Leader to initialize
-Start-Sleep -Seconds 2
-
-# 2. Start Members
-for ($i = 1; $i -le 4; $i++) {
-    Write-Host "Starting Member $i process..." -ForegroundColor Cyan
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Starting Member $i...' -ForegroundColor Yellow; mvn exec:java '-Dexec.mainClass=com.depchain.consensus.Member' '-Dexec.args=member$i'"
-    Start-Sleep -Milliseconds 500
-}
-
-# Wait for Members to initialize
-Start-Sleep -Seconds 3
-
-# 3. Start ClientLibrary with REST API
-Write-Host "Starting ClientLibrary REST API on port $HttpPort..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Starting ClientLibrary REST API on port $HttpPort...' -ForegroundColor Yellow; mvn exec:java '-Dexec.mainClass=com.depchain.client.ClientLibrary' '-Dexec.args=$HttpPort'"
-
-# Wait for REST API to initialize
-Start-Sleep -Seconds 3
-
-# 4. Start Clients (if not disabled)
-if (-not $RestApiOnly) {
-    Write-Host "Starting $NumClients blockchain client(s)..." -ForegroundColor Cyan
-   
-    for ($i = 1; $i -le $NumClients; $i++) {
-        $clientId = "Client$i"
-        Write-Host "  - Launching client: $clientId" -ForegroundColor Cyan
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Starting Blockchain Client: $clientId' -ForegroundColor Yellow; mvn exec:java '-Dexec.mainClass=com.depchain.client.Client' '-Dexec.args=$clientId'"
-        Start-Sleep -Milliseconds 500
-    }
-}
-
-Write-Host "Blockchain system startup complete!" -ForegroundColor Green
-Write-Host "REST API is available at: http://localhost:$actualHttpPort/blockchain/"
-
-# Helper function for launching more clients
-function Start-BlockchainClient {
-    param (
-        [string]$ClientId = "Client$(Get-Random -Minimum 100 -Maximum 999)"
+# Function to run a member in a new terminal
+function Run-Member {
+    param(
+        [string]$member
     )
    
-    Write-Host "Launching client: $ClientId" -ForegroundColor Cyan
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Starting Blockchain Client: $ClientId' -ForegroundColor Yellow; mvn exec:java '-Dexec.mainClass=com.depchain.client.Client' '-Dexec.args=$ClientId'"
+    # Start a new Command Prompt window
+    Start-Process cmd.exe -ArgumentList "/K title $member && mvn exec:java -Dexec.mainClass=com.depchain.consensus.Main -Dexec.args=$member"
 }
 
-# Export function for PowerShell session
-Export-ModuleMember -Function Start-BlockchainClient -ErrorAction SilentlyContinue
+# Function to run a client or client library in a new terminal
+function Run-Client {
+    param(
+        [string]$title,
+        [string]$command
+    )
+   
+    # Start a new Command Prompt window
+    Start-Process cmd.exe -ArgumentList "/K title $title && $command"
+}
 
-Write-Host "`nTo launch additional clients, run:" -ForegroundColor Magenta
-Write-Host "Start-BlockchainClient -ClientId 'Alice'" -ForegroundColor Yellow
+# Create directories if they don't exist
+New-Item -Path "src\main\resources\priv_keys" -ItemType Directory -Force | Out-Null
+New-Item -Path "src\main\resources\pub_keys" -ItemType Directory -Force | Out-Null
+
+Write-Host "Cleared key directories and running members..."
+
+# Run each member in a new terminal
+foreach ($member in $members) {
+    Run-Member -member $member
+    # Small delay to prevent all terminals from starting simultaneously
+    Start-Sleep -Seconds 1
+}
+
+Write-Host "Starting client and client library..."
+
+# Start client1
+Run-Client -title "client1" -command "mvn exec:java -Dexec.mainClass=com.depchain.client.Client -Dexec.args=`"client1`""
+Start-Sleep -Seconds 1
+
+# Start client library on port 8080
+Run-Client -title "ClientLibrary" -command "mvn exec:java -Dexec.mainClass=com.depchain.client.ClientLibrary -Dexec.args=8080"
+
+Write-Host "All members and clients launched!"

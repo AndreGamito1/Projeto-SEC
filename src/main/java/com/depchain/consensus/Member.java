@@ -40,6 +40,7 @@ public class Member {
         this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, blockchain);
         this.new_blockchain = new ArrayList<>();
         System.out.println("Member created: " + name);
+        setupMemberLinks();
 
 
         if (memberManager.isLeader()) {
@@ -85,7 +86,6 @@ public class Member {
         }
 
 
-        setupMemberLinks();
         start();
     }
 
@@ -226,4 +226,52 @@ public class Member {
     public int getQuorumSize() {
         return memberManager.getQuorumSize();
     }
+
+    private boolean isTransactionValid(Transaction tx, WorldState state) {
+        // Aqui deves verificar:
+        // - Assinatura válida
+        // - Sender existe
+        // - Saldo suficiente
+        // - Nonce correto (se usares nonce)
+        
+        AccountState sender = state.getAccount(tx.getSender().toString());
+        AccountState receiver = state.getAccount(tx.getReceiver().toString());
+    
+        if (sender == null || receiver == null) return false;
+    
+        try {
+            double balance = new java.math.BigDecimal(sender.getBalance()).doubleValue();
+            return balance >= tx.getValue(); // saldo suficiente
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    private void applyTransaction(Transaction tx, WorldState state) {
+        AccountState sender = state.getAccount(tx.getSender().toString());
+        AccountState receiver = state.getAccount(tx.getReceiver().toString());
+    
+        if (sender == null || receiver == null) return;
+    
+        java.math.BigDecimal value = java.math.BigDecimal.valueOf(tx.getValue());
+        java.math.BigDecimal senderBalance = new java.math.BigDecimal(sender.getBalance());
+        java.math.BigDecimal receiverBalance = new java.math.BigDecimal(receiver.getBalance());
+    
+        sender.setBalance(senderBalance.subtract(value).toString());
+        receiver.setBalance(receiverBalance.add(value).toString());
+    } 
+    
+    public boolean areAllTransactionsValid(Block block) {
+        WorldState copyWorldState = WorldState.deepCopy(this.worldState); // cópia profunda do estado atual da worldstate
+    
+        for (Transaction tx : block.getTransactions()) {
+            if (!isTransactionValid(tx, copyWorldState)) {
+                return false;
+            }
+            applyTransaction(tx, copyWorldState); // aplica a transação à cópia para atualizar o estado
+        }
+    
+        return true;
+    }
+
 }

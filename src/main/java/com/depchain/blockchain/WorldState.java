@@ -230,4 +230,31 @@ public class WorldState {
             this.privateKeyPath = privateKeyPath;
         }
     }
+
+    public static WorldState deepCopy(WorldState originalState) {
+        WorldState copy = new WorldState();
+    
+        for (Map.Entry<String, AccountState> entry : originalState.getAccounts().entrySet()) {
+            AccountState original = entry.getValue();
+            AccountState cloned = new AccountState(
+                original.getAddress(),
+                original.getPublicKeyPath(),
+                original.getPrivateKeyPath(),
+                original.getBalance()
+            );
+    
+            cloned.setCode(original.getCode()); // Pode ser null ou uma string
+    
+            // Copiar profundamente o mapa de storage
+            if (original.getStorage() != null) {
+                Map<String, String> storageCopy = new HashMap<>(original.getStorage());
+                cloned.setStorage(storageCopy);
+            }
+    
+            copy.addAccount(cloned);
+        }
+    
+        return copy;
+    }
+
 }
