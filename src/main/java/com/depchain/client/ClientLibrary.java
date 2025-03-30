@@ -3,6 +3,7 @@ package com.depchain.client;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.PublicKey;
 import java.util.List;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -22,8 +23,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.depchain.consensus.MemberManager;
 import com.depchain.networking.*;
 import com.depchain.utils.*;
-
-
+import com.depchain.blockchain.*;
 
 /**
  * Client library for interacting with the Byzantine consensus blockchain.
@@ -39,7 +39,8 @@ public class ClientLibrary {
     private HttpServer httpServer;
 
     protected MemberManager memberManager;
-    
+    private ClientManager clientManager;
+
     /**
      * Constructor for ClientLibrary with default port allocation.
      * 
@@ -48,7 +49,7 @@ public class ClientLibrary {
     public ClientLibrary() throws Exception {
         this(allocateDynamicPort());
     }
-    
+
     /**
      * Constructor for ClientLibrary with specific port.
      * 
@@ -59,13 +60,14 @@ public class ClientLibrary {
         this(clientPort, clientPort + 1);
         memberManager = new MemberManager(name);
         memberManager.setupMemberLinks();
+        clientManager = new ClientManager("src/main/resources/accounts.json");
     }
-    
+
     /**
      * Constructor for ClientLibrary with specific port and HTTP port.
      * 
      * @param clientPort The port to use for this client
-     * @param httpPort The port for the REST API
+     * @param httpPort   The port for the REST API
      * @throws Exception If initialization fails
      */
     public ClientLibrary(int clientPort, int httpPort) throws Exception {
@@ -73,6 +75,7 @@ public class ClientLibrary {
         Logger.log(Logger.CLIENT_LIBRARY, "Initialized client library on port " + port);
         initializeRestApi();
     }
+
     /**
      * Initializes the REST API server.
      * 
@@ -80,17 +83,17 @@ public class ClientLibrary {
      */
     private void initializeRestApi() throws IOException {
         httpServer = HttpServer.create(new InetSocketAddress(httpPort), 0);
-        
+
         httpServer.createContext("/blockchain/append", new AppendHandler());
         httpServer.createContext("/blockchain/get", new GetHandler());
-        
+
         httpServer.setExecutor(Executors.newFixedThreadPool(10));
         httpServer.start();
-        
+
         Logger.log(Logger.CLIENT_LIBRARY, "REST API server started on port " + httpPort);
         System.out.println("REST API server available at http://localhost:" + httpPort + "/blockchain/");
     }
-    
+
     /**
      * Stops the HTTP server.
      */
@@ -100,7 +103,7 @@ public class ClientLibrary {
             Logger.log(Logger.CLIENT_LIBRARY, "REST API server stopped");
         }
     }
-    
+
     /**
      * Handler for the /blockchain/append endpoint.
      */
@@ -113,32 +116,41 @@ public class ClientLibrary {
                     sendResponse(exchange, 405, response);
                     return;
                 }
-                
+
                 InputStream inputStream = exchange.getRequestBody();
                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
                 String requestBody = reader.lines().collect(Collectors.joining());
-                
+
                 JSONObject requestJson = new JSONObject(requestBody);
-                String data = requestJson.optString("data", "");
-                
-                if (data.isEmpty()) {
-                    String response = "{\"error\":\"Missing data parameter\"}";
+
+                String signature = requestJson.optString("signature", "");
+                String senderName = requestJson.optString("senderName", "");
+                String receiverName = requestJson.optString("receiverName", "");
+                double amount = requestJson.optDouble("value", 0.0);
+                if (senderName.isEmpty() || receiverName.isEmpty() || amount <= 0) {
+                    String response = "{\"error\":\"Missing/wrong parameters\"}";
                     sendResponse(exchange, 400, response);
                     return;
                 }
-                
-                boolean success = appendToBlockchain(data);
-                
+                if (Encryption.decryptWithPublicKey(signature, clientManager.getPublicKey(senderName))
+                        .equals(receiverName)) {
+                    String response = "{\"error\":\"Invalid signature\"}";
+                    sendResponse(exchange, 400, response);
+                    Logger.log(Logger.CLIENT_LIBRARY, "Invalid signature");
+                    return;
+                }
+
+                boolean success = appendToBlockchain(senderName, receiverName, amount, signature);
                 String response = "{\"success\":" + success + "}";
                 sendResponse(exchange, 200, response);
-                
+
             } catch (Exception e) {
                 String response = "{\"error\":\"" + e.getMessage() + "\"}";
                 sendResponse(exchange, 500, response);
             }
         }
     }
-    
+
     /**
      * Handler for the /blockchain/get endpoint.
      */
@@ -151,19 +163,19 @@ public class ClientLibrary {
                     sendResponse(exchange, 405, response);
                     return;
                 }
-                
+
                 String blockchain = getBlockchain();
-                
+
                 String response = "{\"blockchain\":" + JSONObject.quote(blockchain) + "}";
                 sendResponse(exchange, 200, response);
-                
+
             } catch (Exception e) {
                 String response = "{\"error\":\"" + e.getMessage() + "\"}";
                 sendResponse(exchange, 500, response);
             }
         }
     }
-    
+
     /**
      * Helper method to send HTTP responses.
      */
@@ -175,7 +187,7 @@ public class ClientLibrary {
         outputStream.write(responseBytes);
         outputStream.close();
     }
-    
+
     /**
      * Allocates a dynamic port for this client instance.
      * 
@@ -185,9 +197,6 @@ public class ClientLibrary {
         Random random = new Random();
         return BASE_PORT + random.nextInt(PORT_RANGE);
     }
-    
-
-
 
     /**
      * Appends a string to the blockchain.
@@ -196,12 +205,69 @@ public class ClientLibrary {
      * @return true if the request was sent, false otherwise
      * @throws Exception If sending fails
      */
-    public boolean appendToBlockchain(String data) throws Exception {
-        sendToLeader(data, "PROPOSE");
-        Logger.log(Logger.CLIENT_LIBRARY, "Sent append request: " + data);
-        return true;
+    public boolean appendToBlockchain(String senderName, String receiverName, double amount, String senderSignature) throws Exception {
+        PublicKey senderKey = null;
+        PublicKey receiverKey = null;
+
+        // 1. Get Public Keys
+        try {
+            senderKey = clientManager.getPublicKey(senderName);
+            receiverKey = clientManager.getPublicKey(receiverName);
+        } catch (Exception e) {
+            System.err.println("ClientLib: Error retrieving public keys: " + e.getMessage());
+            throw new Exception("Failed to get public keys", e);
+        }
+        if (senderKey == null) {
+            Logger.log(Logger.CLIENT_LIBRARY, "Error: Sender PublicKey not found for " + senderName);
+            throw new Exception("Could not find PublicKey for sender: " + senderName);
+        }
+        if (receiverKey == null) {
+            Logger.log(Logger.CLIENT_LIBRARY, "Error: Receiver PublicKey not found for " + receiverName);
+            throw new Exception("Could not find PublicKey for receiver: " + receiverName);
+        }
+
+        // 2. Prepare other Transaction fields
+        String transactionData = "";
+        long nonce = System.currentTimeMillis();
+        byte[] signature = java.util.Base64.getDecoder().decode(senderSignature); 
+
+        // 3. Create the Transaction Object
+        Transaction transaction = new Transaction(
+                senderKey,
+                receiverKey,
+                amount,
+                transactionData, 
+                nonce,
+                signature 
+        );
+
+        // 4. Serialize the Transaction to send
+        String serializedTransaction;
+        try {
+            serializedTransaction = Transaction.serializeToString(transaction);
+            if (serializedTransaction == null) {
+                throw new IOException("Serialization resulted in null string.");
+            }
+        } catch (IOException e) {
+            Logger.log(Logger.CLIENT_LIBRARY, "Error: Failed to serialize transaction: " + e.getMessage());
+
+            throw new Exception("Serialization failed", e);
+        }
+
+        // 5. Send the *serialized transaction* to the leader
+        try {
+            sendToLeader(serializedTransaction, "TRANSACTION");
+            Logger.log(Logger.CLIENT_LIBRARY, "Sent PROPOSE request for transaction. Nonce: " + nonce); 
+            return true;
+
+        } catch (Exception e) {
+            Logger.log(Logger.CLIENT_LIBRARY, "Error: Failed sending proposal: " + e.getMessage());
+            throw new Exception("Failed to send proposal to leader", e);
+        }
     }
-    
+
+  
+
     /**
      * Gets the current blockchain with improved message handling.
      * 
@@ -210,16 +276,16 @@ public class ClientLibrary {
      */
     public String getBlockchain() throws Exception {
         leaderLink.clearReceivedMessages();
-        
+
         sendToLeader("", "GET_BLOCKCHAIN");
         Logger.log(Logger.CLIENT_LIBRARY, "Sent get blockchain request");
-        
+
         final int MAX_RETRIES = 5;
         final int RETRY_DELAY_MS = 1000;
-        
+
         for (int retry = 0; retry < MAX_RETRIES; retry++) {
             Thread.sleep(RETRY_DELAY_MS);
-            
+
             List<AuthenticatedMessage> messages = leaderLink.getReceivedMessages();
             for (AuthenticatedMessage authMsg : messages) {
                 Message message = authMsg;
@@ -228,16 +294,16 @@ public class ClientLibrary {
                     return message.getPayload();
                 }
             }
-            
+
             if (retry < MAX_RETRIES - 1) {
                 Logger.log(Logger.CLIENT_LIBRARY, "No response yet, retrying...");
             }
         }
-        
+
         Logger.log(Logger.CLIENT_LIBRARY, "No blockchain data received after " + MAX_RETRIES + " attempts");
         return "No blockchain data received after timeout. Please try again.";
     }
-    
+
     /**
      * Sends a test message to the leader.
      * 
@@ -248,7 +314,7 @@ public class ClientLibrary {
         sendToLeader(String.valueOf(times), "TEST");
         Logger.log(Logger.CLIENT_LIBRARY, "Sent test message for " + times + " run(s)");
     }
-    
+
     /**
      * Sends a message to the leader.
      * 
@@ -258,10 +324,10 @@ public class ClientLibrary {
      */
     private void sendToLeader(String payload, String command) throws Exception {
         Logger.log(Logger.CLIENT_LIBRARY, "Sending message to leader: " + payload + " " + command);
-        Logger.log(Logger.CLIENT_LIBRARY,"Leader is "+memberManager.getLeaderName());
+        Logger.log(Logger.CLIENT_LIBRARY, "Leader is " + memberManager.getLeaderName());
         memberManager.sendToMember(memberManager.getLeaderName(), payload, command);
     }
-    
+
     /**
      * Gets the port used by this client library instance.
      * 
@@ -270,7 +336,7 @@ public class ClientLibrary {
     public int getPort() {
         return port;
     }
-    
+
     /**
      * Gets the HTTP port used by the REST API.
      * 
@@ -279,7 +345,7 @@ public class ClientLibrary {
     public int getHttpPort() {
         return httpPort;
     }
-    
+
     /**
      * Main method to start a ClientLibrary instance with command-line parameters.
      * Usage: java -jar clientlibrary.jar [clientPort] [httpPort]
@@ -287,32 +353,30 @@ public class ClientLibrary {
     public static void main(String[] args) {
         try {
             ClientLibrary library;
-            
+
             if (args.length >= 2) {
                 int clientPort = Integer.parseInt(args[0]);
                 int httpPort = Integer.parseInt(args[1]);
                 library = new ClientLibrary(clientPort, httpPort);
                 System.out.println("Started ClientLibrary with specified ports:");
-            }
-            else if (args.length == 1) {
+            } else if (args.length == 1) {
                 int clientPort = Integer.parseInt(args[0]);
                 library = new ClientLibrary(clientPort);
                 System.out.println("Started ClientLibrary with specified client port:");
-            }
-            else {
+            } else {
                 library = new ClientLibrary();
                 System.out.println("Started ClientLibrary with automatic port allocation:");
             }
-            
+
             System.out.println("- Client port: " + library.getPort());
             System.out.println("- REST API: http://localhost:" + library.getHttpPort() + "/blockchain/");
             System.out.println("Press Ctrl+C to stop");
-            
+
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 System.out.println("Shutting down ClientLibrary...");
                 library.stopRestApi();
             }));
-            
+
         } catch (Exception e) {
             System.err.println("Failed to start ClientLibrary: " + e.getMessage());
             e.printStackTrace();

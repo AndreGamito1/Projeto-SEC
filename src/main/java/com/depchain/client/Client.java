@@ -1,11 +1,28 @@
 package com.depchain.client;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.time.Duration;
+import java.util.Base64;
+
+import org.json.JSONArray;
 import org.json.JSONObject;
+
+import com.depchain.utils.Encryption;
+import com.depchain.utils.KeyManager;
 
 /**
  * Client class that uses the REST API to interact with the blockchain.
@@ -15,7 +32,10 @@ public class Client {
     private final String baseUrl;
     private final HttpClient httpClient;
     private int clientPort;
-    
+    private PublicKey publicKey;    
+    private PrivateKey privateKey; 
+
+
     /**
      * Constructor for Client.
      * 
@@ -45,7 +65,68 @@ public class Client {
         System.out.println("Blockchain client initialized with ID: " + clientId);
         System.out.println("Connected to blockchain REST API at: " + baseUrl);
     }
-    
+ 
+    public void loadClientKeys() {
+        try {
+            // Load the JSON file
+            String jsonContent = new String(Files.readAllBytes(Paths.get("src/main/resources/setup.json")));
+            JSONObject json = new JSONObject(jsonContent);
+            JSONArray clients = json.getJSONArray("clients");
+            
+            for (int i = 0; i < clients.length(); i++) {
+                JSONObject client = clients.getJSONObject(i);
+                
+                if (client.getString("name").equals(this.clientId)) {
+                    String publicKeyPath = client.getString("publicKeyPath");
+                    String privateKeyPath = client.getString("privateKeyPath");
+                    
+                    File publicKeyFile = new File(publicKeyPath);
+                    File privateKeyFile = new File(privateKeyPath);
+                    
+                    if (!publicKeyFile.exists() || !privateKeyFile.exists()) {
+                        generateKeyPair(publicKeyPath, privateKeyPath);
+                    }
+                    publicKey = KeyManager.loadPublicKeyFromFile(publicKeyPath);
+                    privateKey = KeyManager.loadPrivateKeyFromFile(privateKeyPath);
+                    break;
+                }
+            }
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void generateKeyPair(String publicKeyPath, String privateKeyPath) {
+        try {
+            // Generate RSA key pair
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+            keyGen.initialize(2048);
+            KeyPair pair = keyGen.generateKeyPair();
+            PrivateKey privateKey = pair.getPrivate();
+            PublicKey publicKey = pair.getPublic();
+            
+            // Encode keys
+            String publicKeyEncoded = Base64.getEncoder().encodeToString(publicKey.getEncoded());
+            String privateKeyEncoded = Base64.getEncoder().encodeToString(privateKey.getEncoded());
+            
+            // Save keys to files
+            saveKeyToFile(publicKeyEncoded, publicKeyPath);
+            saveKeyToFile(privateKeyEncoded, privateKeyPath);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void saveKeyToFile(String key, String filePath) throws IOException {
+        File file = new File(filePath);
+        file.getParentFile().mkdirs(); // Ensure directory exists
+        try (FileWriter writer = new FileWriter(file)) {
+            writer.write(key);
+        }
+    }
+
+
     /**
      * Gets the client's unique identifier.
      * 
@@ -64,37 +145,94 @@ public class Client {
         return clientPort;
     }
     
-    /**
-     * Appends data to the blockchain with the client's ID prefix.
-     * 
-     * @param data The data to append
-     * @return true if the append operation was successful
-     * @throws Exception If the operation fails
+/**
+     * Sends the sender name, receiver name, and amount as JSON to the server.
+     * Extremely basic, NO security or validation beyond basic input checks.
+     *
+     * @param receiverName The name of the recipient.
+     * @param amountString The amount to transfer (as a string).
+     * @return true if the server responds with a 2xx status code, false otherwise.
      */
-    public boolean appendToBlockchain(String data) throws Exception {
-        String formattedData = String.format("[%s] %s", clientId, data);
-        
+    public boolean appendToBlockchain(String receiverName, String amountString) {
+
+        if (receiverName == null || receiverName.trim().isEmpty()) {
+            System.err.println("Error: Receiver name is required.");
+            return false;
+        }
+        if (amountString == null) {
+            System.err.println("Error: Amount string is required.");
+            return false;
+        }
+
+        double amountValue;
+        try {
+            amountValue = Double.parseDouble(amountString);
+            if (amountValue <= 0) {
+                 System.err.println("Error: Amount must be positive.");
+                 return false;
+            }
+        } catch (NumberFormatException e) {
+            System.err.println("Error: Invalid format for amount: '" + amountString + "'");
+            return false;
+        }
+
+        String signature = null;
+        try {
+            signature = Encryption.encryptWithPrivateKey(receiverName, this.privateKey);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // 2. Create JSON Payload
         JSONObject requestBody = new JSONObject();
-        requestBody.put("data", formattedData);
-        
+        requestBody.put("senderName", this.clientId);      // Sender is the client ID 
+        requestBody.put("receiverName", receiverName);     // Receiver from parameter
+        requestBody.put("amount", amountValue);            // Amount from parameter (parsed)
+        requestBody.put("signature", signature);           // Signature of the transaction
+
+        String jsonPayload = requestBody.toString();
+        System.out.println("Sending request: " + jsonPayload); // Log what's being sent
+
+        // 3. Build HTTP Request
         try {
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(baseUrl + "/blockchain/append"))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+                    .uri(URI.create(this.baseUrl + "/blockchain/append"))
+                    .header("Content-Type", "application/json") 
+                    .POST(BodyPublishers.ofString(jsonPayload)) 
                     .build();
-            
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                JSONObject jsonResponse = new JSONObject(response.body());
-                return jsonResponse.optBoolean("success", false);
+
+            // 4. Send Request and Get Response
+            HttpResponse<String> response = httpClient.send(request, BodyHandlers.ofString());
+
+            // 5. Check Response Status
+            int statusCode = response.statusCode();
+            System.out.println("Received Status Code: " + statusCode);
+            System.out.println("Received Response Body: " + response.body()); // Log response body
+
+            if (statusCode >= 200 && statusCode < 300) {
+                System.out.println("Request successful (Status code " + statusCode + ").");
+                return true;
             } else {
-                System.err.println("HTTP Error: " + response.statusCode() + " - " + response.body());
+                System.err.println("Request failed (Status code " + statusCode + ").");
                 return false;
             }
-        } catch (Exception e) {
-            System.err.println("Connection error: " + e.getMessage());
+
+        } catch (IOException | InterruptedException e) {
+            // Handle network errors or if the sending thread is interrupted
+            System.err.println("Error sending request: " + e.getMessage());
+             if (e instanceof InterruptedException) {
+                 Thread.currentThread().interrupt(); 
+             }
+            return false;
+        } catch (IllegalArgumentException e) {
+            // Handle errors like invalid URI format from baseUrl
+            System.err.println("Error building request (check URL?): " + e.getMessage());
+            return false;
+        }
+         catch (Exception e) {
+            // Catch-all for any other unexpected errors during the process
+            System.err.println("An unexpected error occurred: " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
@@ -126,18 +264,7 @@ public class Client {
             return "Error: Could not connect to blockchain service";
         }
     }
-    
-    /**
-     * Sends a test message to the blockchain.
-     * This method is kept for backward compatibility but is not supported by the REST API.
-     * 
-     * @param testRuns Number of test runs to perform
-     * @throws Exception If the operation fails
-     */
-    public void runTest(int testRuns) throws Exception {
-        System.out.println("Test operation is not supported by the REST API");
-    }
-    
+       
     /**
      * Main method to initialize and run a client.
      * 
@@ -185,13 +312,16 @@ public class Client {
             try {
                 switch (input) {
                     case "1":
-                        System.out.print("Enter data to append: ");
-                        String data = scanner.nextLine();
-                        boolean success = client.appendToBlockchain(data);
+                        System.out.print("Receiver address: ");
+                        String receiver = scanner.nextLine();
+                        System.out.print("Amount: ");
+                        String amount = scanner.nextLine();
+
+                        boolean success = client.appendToBlockchain(receiver, amount);
                         if (success) {
-                            System.out.println("Data successfully appended to blockchain.");
+                            System.out.println("Append sequest successfully send.");
                         } else {
-                            System.out.println("Failed to append data to blockchain.");
+                            System.out.println("Failed to send append request.");
                         }
                         break;
                         

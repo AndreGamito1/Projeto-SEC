@@ -84,19 +84,15 @@ public class WorldState {
             
             // Check if this account already exists in accounts.json
             AccountInfo accountInfo = accountsMap.get(address);
-            
-            if (accountInfo == null) {
-                // Account doesn't exist in accounts.json, create new keys
-                accountInfo = generateNewAccountInfo(address);
-                accountsMap.put(address, accountInfo);
-            }
+        
             
             // Create account state
             AccountState accountState = new AccountState(
                 address,
                 accountInfo.publicKeyPath,
                 accountInfo.privateKeyPath,
-                balance
+                balance,
+                accountInfo.name
             );
             
             // Add contract-specific data if present
@@ -121,8 +117,7 @@ public class WorldState {
             addAccount(accountState);
         }
         
-        // Save updated accounts.json
-        saveAccountsFile(accountsMap);
+
     }
     
     /**
@@ -136,60 +131,36 @@ public class WorldState {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode rootNode = mapper.readTree(accountsFile);
             
-            Iterator<Map.Entry<String, JsonNode>> fields = rootNode.fields();
-            while (fields.hasNext()) {
-                Map.Entry<String, JsonNode> entry = fields.next();
-                String accountId = entry.getKey();
-                JsonNode accountData = entry.getValue();
-                
-                String address = accountData.get("address").asText();
-                String publicKeyPath = accountData.get("public_key_path").asText();
-                String privateKeyPath = accountData.get("private_key_path").asText();
-                
-                AccountInfo accountInfo = new AccountInfo(publicKeyPath, privateKeyPath);
-                accountsMap.put(address, accountInfo);
+            // Get the clients array from the root object
+            JsonNode clientsArray = rootNode.get("clients");
+            
+            // Check if the clients node exists and is an array
+            if (clientsArray != null && clientsArray.isArray()) {
+                for (JsonNode clientNode : clientsArray) {
+                    // Extract information from each client object
+                    String name = clientNode.get("name").asText();
+                    String address = clientNode.get("address").asText();
+                    String publicKeyPath = clientNode.get("publicKeyPath").asText();
+                    String privateKeyPath = clientNode.get("privateKeyPath").asText();
+                    
+                    // Store the account info using the address as the key
+                    AccountInfo accountInfo = new AccountInfo(publicKeyPath, privateKeyPath, name, address);
+                    accountsMap.put(address, accountInfo);
+                }
+            } else {
+                throw new IOException("Invalid JSON format: Expected a 'clients' array.");
             }
         }
-        
-        return accountsMap;
-    }
     
-    /**
-     * Saves the accounts map to accounts.json
-     */
-    private void saveAccountsFile(Map<String, AccountInfo> accountsMap) throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        ObjectNode rootNode = mapper.createObjectNode();
-        
-        for (Map.Entry<String, AccountInfo> entry : accountsMap.entrySet()) {
-            String address = entry.getKey();
-            AccountInfo info = entry.getValue();
-            
-            // Generate a unique account ID (this would usually be more sophisticated)
-            String accountId = "account_" + UUID.randomUUID().toString().substring(0, 8);
-            
-            ObjectNode accountNode = mapper.createObjectNode();
-            accountNode.put("address", address);
-            accountNode.put("public_key_path", info.publicKeyPath);
-            accountNode.put("private_key_path", info.privateKeyPath);
-            
-            rootNode.set(accountId, accountNode);
-        }
-        
-        // Create parent directories if they don't exist
-        File accountsFile = new File(ACCOUNTS_FILE_PATH);
-        if (!accountsFile.getParentFile().exists()) {
-            accountsFile.getParentFile().mkdirs();
-        }
-        
-        // Write to file with pretty printing
-        mapper.writerWithDefaultPrettyPrinter().writeValue(accountsFile, rootNode);
-    }
+    return accountsMap;
+}
+
+
     
     /**
      * Generates new key pair for an account and saves them to files
      */
-    private AccountInfo generateNewAccountInfo(String address) throws IOException {
+    private AccountInfo generateNewAccountInfo(String address, String name) throws IOException {
         try {
             // Generate a unique account ID
             String accountId = "account_" + UUID.randomUUID().toString().substring(0, 8);
@@ -211,7 +182,7 @@ public class WorldState {
             String privateKeyEncoded = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
             Files.write(Paths.get(privateKeyPath), privateKeyEncoded.getBytes());
             
-            return new AccountInfo(publicKeyPath, privateKeyPath);
+            return new AccountInfo(publicKeyPath, privateKeyPath, name, address);
             
         } catch (NoSuchAlgorithmException e) {
             throw new IOException("Failed to generate keys: " + e.getMessage(), e);
@@ -224,8 +195,12 @@ public class WorldState {
     private static class AccountInfo {
         String publicKeyPath;
         String privateKeyPath;
+        String name;
+        String address;
         
-        public AccountInfo(String publicKeyPath, String privateKeyPath) {
+        public AccountInfo(String publicKeyPath, String privateKeyPath, String name, String address) {
+            this.name = name;
+            this.address = address;
             this.publicKeyPath = publicKeyPath;
             this.privateKeyPath = privateKeyPath;
         }
@@ -240,7 +215,8 @@ public class WorldState {
                 original.getAddress(),
                 original.getPublicKeyPath(),
                 original.getPrivateKeyPath(),
-                original.getBalance()
+                original.getBalance(),
+                original.getName()
             );
     
             cloned.setCode(original.getCode()); // Pode ser null ou uma string

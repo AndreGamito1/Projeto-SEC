@@ -2,6 +2,7 @@ package com.depchain.consensus;
 
 import com.depchain.utils.Logger;
 import com.depchain.networking.Message;
+import com.depchain.blockchain.Transaction;
 import com.depchain.networking.AuthenticatedMessage;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -51,6 +52,15 @@ public class LeaderRole implements Role {
             case "ABORT":
                 System.out.println("Processing ABORT Message: " + message.getCommand() + " from " + sourceId);
                 handleAbortMessage(message);
+                break;
+            case "TRANSACTION":
+                System.out.println("Processing TRANSACTION Message: " + message.getCommand() + " from " + sourceId);
+                try {
+                    Transaction transaction = Transaction.deserializeFromString(message.getPayload());
+                    System.out.println("Transaction: " + transaction);
+                } catch (Exception e) {
+                    System.err.println("Error deserializing transaction: " + e.getMessage());
+                }
                 break;
             default:
                 System.out.println("Unknown command: " + message.getCommand());

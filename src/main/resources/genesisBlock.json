@@ -4,7 +4,7 @@
     "transactions": [],
     "state": {
         "0xA1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0": {
-            "balance": "200"
+            "balance": "100"
         },
         "0x11223344556677889900AABBCCDDEEFF11223344": {
             "balance": "100"

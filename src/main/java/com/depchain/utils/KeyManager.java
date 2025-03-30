@@ -88,6 +88,46 @@ public class KeyManager {
         }
     }
 
+     /**
+     * Creates a new RSA key pair and saves it to the specified paths.
+     * Files will be saved in PEM format.
+     * 
+     * @param entityName The name of the entity to create keys for
+     * @return true if successful, false otherwise
+     */
+    public static boolean createAccountKeyPair(String entityName, String publicKeyPath, String privateKeyPath) {
+      
+
+        try {
+            // Create directories if they don't exist
+            new File("src/main/resources/accountKeys").mkdirs();
+
+            // Generate RSA key pair with explicit key size 
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+            keyGen.initialize(2048);
+            
+            KeyPair pair = keyGen.generateKeyPair();
+            PrivateKey privateKey = pair.getPrivate();
+            PublicKey publicKey = pair.getPublic();
+
+            // Log key details
+            Logger.log(Logger.AUTH_LINKS, "Generated RSA key pair for " + entityName);
+            Logger.log(Logger.AUTH_LINKS, "  Public key format: " + publicKey.getFormat());
+            Logger.log(Logger.AUTH_LINKS, "  Public key algorithm: " + publicKey.getAlgorithm());
+            Logger.log(Logger.AUTH_LINKS, "  Public key size: " + ((java.security.interfaces.RSAPublicKey)publicKey).getModulus().bitLength() + " bits");
+            Logger.log(Logger.AUTH_LINKS, "  Public key path: " + publicKeyPath);
+
+            // Save keys to files
+            savePrivateKeyToPem(privateKey, privateKeyPath);
+            savePublicKeyToPem(publicKey, publicKeyPath);
+
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     /**
      * Waits until all keys exist in setup.json before proceeding.
      *
@@ -157,7 +197,7 @@ public class KeyManager {
      * @param filePath The file path to save to
      * @throws IOException If file operations fail
      */
-    private void savePrivateKeyToPem(PrivateKey privateKey, String filePath) throws IOException {
+    private static void savePrivateKeyToPem(PrivateKey privateKey, String filePath) throws IOException {
         byte[] encoded = privateKey.getEncoded();
         String base64Encoded = Base64.getEncoder().encodeToString(encoded);
 
@@ -177,7 +217,7 @@ public class KeyManager {
      * @param filePath The file path to save to
      * @throws IOException If file operations fail
      */
-    private void savePublicKeyToPem(PublicKey publicKey, String filePath) throws IOException {
+    public static void savePublicKeyToPem(PublicKey publicKey, String filePath) throws IOException {
         byte[] encoded = publicKey.getEncoded();
         String base64Encoded = Base64.getEncoder().encodeToString(encoded);
 
@@ -196,7 +236,7 @@ public class KeyManager {
      * @param base64Content The base64 encoded content
      * @return Formatted content with line breaks
      */
-    private String formatPemContent(String base64Content) {
+    private static String formatPemContent(String base64Content) {
         StringBuilder result = new StringBuilder();
         for (int i = 0; i < base64Content.length(); i += 64) {
             result.append(base64Content, i, Math.min(i + 64, base64Content.length())).append("\n");
@@ -262,7 +302,7 @@ public class KeyManager {
      * @return The public key
      * @throws Exception If loading or decoding fails
      */
-    private PublicKey loadPublicKeyFromFile(String keyFilePath) throws Exception {
+    public static PublicKey loadPublicKeyFromFile(String keyFilePath) throws Exception {
         File keyFile = new File(keyFilePath);
         if (!keyFile.exists()) {
             throw new IOException("Public key file not found: " + keyFilePath);
@@ -292,7 +332,7 @@ public class KeyManager {
      * @return The private key
      * @throws Exception If loading or decoding fails
      */
-    private PrivateKey loadPrivateKeyFromFile(String keyFilePath) throws Exception {
+    public static PrivateKey loadPrivateKeyFromFile(String keyFilePath) throws Exception {
         File keyFile = new File(keyFilePath);
         if (!keyFile.exists()) {
             throw new IOException("Private key file not found: " + keyFilePath);
@@ -323,7 +363,7 @@ public class KeyManager {
      * @param endMarker The end marker (e.g., "-----END PRIVATE KEY-----")
      * @return The Base64 encoded content
      */
-    private String extractBase64Content(String pemContent, String beginMarker, String endMarker) {
+    private static String extractBase64Content(String pemContent, String beginMarker, String endMarker) {
         int beginIndex = pemContent.indexOf(beginMarker) + beginMarker.length();
         int endIndex = pemContent.indexOf(endMarker);
 

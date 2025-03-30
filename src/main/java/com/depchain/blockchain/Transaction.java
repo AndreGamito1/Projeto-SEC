@@ -1,14 +1,17 @@
 package com.depchain.blockchain;
 
-
+import java.io.*; // Import necessary IO classes
 import java.security.PublicKey;
 import java.util.Arrays;
+import java.util.Base64; // Import Base64
 
 /**
- * Represents a transaction in a blockchain.  A transaction involves the transfer
- * of value or data from a sender to a receiver.
+ * Represents a transaction in a blockchain.
+ * Includes static methods for serialization to/from Base64 String.
  */
-public class Transaction {
+public class Transaction implements Serializable {
+
+    private static final long serialVersionUID = 20250328L; // Example version ID
 
     private PublicKey sender;
     private PublicKey receiver;
@@ -16,6 +19,7 @@ public class Transaction {
     private String data;
     private long nonce;
     private byte[] signature; // Digital signature of the transaction
+
 
     /**
      * Constructs a new Transaction object.
@@ -36,128 +40,120 @@ public class Transaction {
         this.signature = signature;
     }
 
-    /**
-     * Returns the public key of the sender.
-     *
-     * @return The sender's public key.
-     */
+    // --- Getters and Setters ---
+
     public PublicKey getSender() {
         return sender;
     }
 
-    /**
-     * Sets the public key of the sender.
-     *
-     * @param sender The new sender's public key.
-     */
     public void setSender(PublicKey sender) {
         this.sender = sender;
     }
 
-    /**
-     * Returns the public key of the receiver.
-     *
-     * @return The receiver's public key.
-     */
     public PublicKey getReceiver() {
         return receiver;
     }
 
-    /**
-     * Sets the public key of the receiver.
-     *
-     * @param receiver The new receiver's public key.
-     */
     public void setReceiver(PublicKey receiver) {
         this.receiver = receiver;
     }
 
-    /**
-     * Returns the amount of value being transferred.
-     *
-     * @return The value being transferred.
-     */
     public double getValue() {
         return value;
     }
 
-    /**
-     * Sets the amount of value being transferred.
-     *
-     * @param value The new value to be transferred.
-     */
     public void setValue(double value) {
         this.value = value;
     }
 
-    /**
-     * Returns the data associated with the transaction.
-     *
-     * @return The transaction data.
-     */
     public String getData() {
         return data;
     }
 
-    /**
-     * Sets the data associated with the transaction.
-     *
-     * @param data The new transaction data.
-     */
     public void setData(String data) {
         this.data = data;
     }
 
-    /**
-     * Returns the nonce of the transaction.
-     *
-     * @return The nonce.
-     */
     public long getNonce() {
         return nonce;
     }
 
-    /**
-     * Sets the nonce of the transaction.
-     *
-     * @param nonce The new nonce.
-     */
     public void setNonce(long nonce) {
         this.nonce = nonce;
     }
 
-    /**
-     * Returns the digital signature of the transaction.
-     *
-     * @return The digital signature.
-     */
     public byte[] getSignature() {
-        return signature;
+        return (signature == null) ? null : signature.clone();
     }
 
-    /**
-     * Sets the digital signature of the transaction.
-     *
-     * @param signature The new digital signature.
-     */
     public void setSignature(byte[] signature) {
-        this.signature = signature;
+        this.signature = (signature == null) ? null : signature.clone();
     }
 
-    /**
-     * Returns a string representation of the transaction.  Useful for debugging.
-     *
-     * @return A string representation of the transaction.
-     */
+
     @Override
     public String toString() {
+        String senderStr = (sender != null) ? sender.getClass().getSimpleName() + "@" + Integer.toHexString(sender.hashCode()) : "null";
+        String receiverStr = (receiver != null) ? receiver.getClass().getSimpleName() + "@" + Integer.toHexString(receiver.hashCode()) : "null";
         return "Transaction{" +
-                "sender=" + sender +
-                ", receiver=" + receiver +
+                "sender=" + senderStr + 
+                ", receiver=" + receiverStr +
                 ", value=" + value +
                 ", data='" + data + '\'' +
                 ", nonce=" + nonce +
-                ", signature=" + Arrays.toString(signature) +
+                ", signature=" + ((signature != null) ? Base64.getEncoder().encodeToString(signature) : "null") + // Show signature as Base64
                 '}';
     }
+
+    // --- Static Serialization / Deserialization Methods ---
+
+    /**
+     * Serializes the given Transaction object into a Base64 encoded String.
+     *
+     * @param tx The Transaction object to serialize.
+     * @return A Base64 encoded String representing the serialized object.
+     * @throws IOException If an I/O error occurs during serialization.
+     */
+    public static String serializeToString(Transaction tx) throws IOException {
+        if (tx == null) {
+            return null;
+        }
+        ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+        try (ObjectOutputStream objOut = new ObjectOutputStream(byteOut)) {
+            objOut.writeObject(tx);
+        } 
+        return Base64.getEncoder().encodeToString(byteOut.toByteArray());
+    }
+
+    /**
+     * Deserializes a Transaction object from a Base64 encoded String.
+     *
+     * @param base64String The Base64 encoded String. 
+     * @return The deserialized Transaction object.
+     * @throws IOException            If an I/O error occurs during deserialization.
+     * @throws ClassNotFoundException If the Transaction class definition cannot be found.
+     * @throws IllegalArgumentException If the input string is null, empty, or not valid Base64.
+     */
+    public static Transaction deserializeFromString(String base64String) throws IOException, ClassNotFoundException {
+        if (base64String == null || base64String.isEmpty()) {
+             throw new IllegalArgumentException("Input Base64 string cannot be null or empty.");
+        }
+        byte[] bytes;
+        try {
+             bytes = Base64.getDecoder().decode(base64String);
+        } catch (IllegalArgumentException e) {
+             throw new IllegalArgumentException("Input string is not valid Base64.", e);
+        }
+
+        ByteArrayInputStream byteIn = new ByteArrayInputStream(bytes);
+        try (ObjectInputStream objIn = new ObjectInputStream(byteIn)) {
+            Object obj = objIn.readObject();
+            if (obj instanceof Transaction) {
+                return (Transaction) obj;
+            } else {
+                throw new ClassCastException("Deserialized object is not of type Transaction: " + obj.getClass().getName());
+            }
+        } 
+    }
+
 }
