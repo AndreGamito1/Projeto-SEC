@@ -1,10 +1,12 @@
 package com.depchain.utils;
 
 import java.nio.charset.StandardCharsets;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.Base64;
 import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -154,6 +156,36 @@ public class Encryption {
         } catch (Exception e) {
             throw new Exception("Decryption error: " + e.getMessage(), e);
         }
+    }
+
+
+
+    // Generate a random AES key
+    public static SecretKey generateAesKey() throws NoSuchAlgorithmException {
+        KeyGenerator keyGen = KeyGenerator.getInstance("AES");
+        keyGen.init(256); // Use 256-bit AES key
+        return keyGen.generateKey();
+    }
+
+    // Encrypt data with AES
+    public static String encryptWithAes(String data, SecretKey aesKey) throws Exception {
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.ENCRYPT_MODE, aesKey);
+        byte[] encryptedBytes = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(encryptedBytes);
+    }
+
+    // Decrypt data with AES
+    public static String decryptWithAes(String encryptedData, SecretKey aesKey) throws Exception {
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.DECRYPT_MODE, aesKey);
+        byte[] decryptedBytes = cipher.doFinal(Base64.getDecoder().decode(encryptedData));
+        return new String(decryptedBytes, StandardCharsets.UTF_8);
+    }
+
+    // Decode AES key from byte array
+    public static SecretKey decodeAesKey(byte[] keyBytes) {
+        return new SecretKeySpec(keyBytes, "AES");
     }
     
     /**

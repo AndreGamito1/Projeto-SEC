@@ -4,6 +4,8 @@ import com.depchain.utils.Logger;
 import com.depchain.networking.Message;
 import com.depchain.blockchain.Transaction;
 import com.depchain.networking.AuthenticatedMessage;
+
+import java.io.IOException;
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -29,7 +31,7 @@ public class LeaderRole implements Role {
 
     @Override
     public void processMessage(String sourceId, AuthenticatedMessage message) {
-        System.out.println("Processing message with payload: " + message.getPayload());
+        System.out.println("Processing message with command: " + message.getCommand());
         switch (message.getCommand()) {
             case "PROPOSE":
                 handleProposeMessage(message);
@@ -55,15 +57,29 @@ public class LeaderRole implements Role {
                 break;
             case "TRANSACTION":
                 System.out.println("Processing TRANSACTION Message: " + message.getCommand() + " from " + sourceId);
+                Transaction transaction;
+                String serializedTransaction;
                 try {
-                    Transaction transaction = Transaction.deserializeFromString(message.getPayload());
-                    System.out.println("Transaction: " + transaction);
+                    serializedTransaction = message.getPayload();
+                    // Ensure the serializedTransaction string is valid
+                    if (serializedTransaction == null || serializedTransaction.isEmpty()) {
+                        throw new IOException("Serialized transaction is null or empty.");
+                    }
+
+                    // Use the correct deserialization method
+                    transaction = Transaction.deserializeFromString(serializedTransaction);
+
+                    if (transaction == null) {
+                        throw new IOException("Deserialization resulted in null object.");
+                    }
+                    System.out.println("Received transaction: " + transaction);
                 } catch (Exception e) {
-                    System.err.println("Error deserializing transaction: " + e.getMessage());
+                    Logger.log(Logger.CLIENT_LIBRARY, "Error: Failed to deserialize transaction: " + e.getMessage());
                 }
                 break;
             default:
-                System.out.println("Unknown command: " + message.getCommand());
+
+                System.out.println("Unknown command: " );
                 break;
         }
     }

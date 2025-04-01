@@ -126,19 +126,26 @@ public class ClientLibrary {
                 String signature = requestJson.optString("signature", "");
                 String senderName = requestJson.optString("senderName", "");
                 String receiverName = requestJson.optString("receiverName", "");
-                double amount = requestJson.optDouble("value", 0.0);
-                if (senderName.isEmpty() || receiverName.isEmpty() || amount <= 0) {
-                    String response = "{\"error\":\"Missing/wrong parameters\"}";
+                double amount = requestJson.optDouble("amount", 0.0);
+
+                if (senderName.isEmpty()) {
+                    String response = "{\"error\":\"Missing or empty senderName\"}";
                     sendResponse(exchange, 400, response);
                     return;
                 }
-                if (Encryption.decryptWithPublicKey(signature, clientManager.getPublicKey(senderName))
-                        .equals(receiverName)) {
-                    String response = "{\"error\":\"Invalid signature\"}";
+
+                if (receiverName.isEmpty()) {
+                    String response = "{\"error\":\"Missing or empty receiverName\"}";
                     sendResponse(exchange, 400, response);
-                    Logger.log(Logger.CLIENT_LIBRARY, "Invalid signature");
                     return;
                 }
+
+                if (amount <= 0) {
+                    String response = "{\"error\":\"Invalid or missing value. Amount must be greater than 0\"}";
+                    sendResponse(exchange, 400, response);
+                    return;
+                }
+
 
                 boolean success = appendToBlockchain(senderName, receiverName, amount, signature);
                 String response = "{\"success\":" + success + "}";
@@ -229,7 +236,7 @@ public class ClientLibrary {
         // 2. Prepare other Transaction fields
         String transactionData = "";
         long nonce = System.currentTimeMillis();
-        byte[] signature = java.util.Base64.getDecoder().decode(senderSignature); 
+        String signature = senderSignature;
 
         // 3. Create the Transaction Object
         Transaction transaction = new Transaction(

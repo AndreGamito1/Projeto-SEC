@@ -8,16 +8,22 @@ public class Message implements Serializable {
     private String command;
     private String authString;
     private String messageID;
+    private String secretKey;
 
 
-    public Message(String payload, String command) {
+    public Message(String payload, String command, String key) {
         this.payload = payload;
         this.command = command;
+        this.secretKey = key;
         this.messageID = UUID.randomUUID().toString();
     }
 
     public String getPayload() {
         return payload;
+    }
+    
+    public String getAesKey() {
+        return secretKey;
     }
     
     public String getCommand() {

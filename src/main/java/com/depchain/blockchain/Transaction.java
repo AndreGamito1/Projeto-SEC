@@ -11,14 +11,14 @@ import java.util.Base64; // Import Base64
  */
 public class Transaction implements Serializable {
 
-    private static final long serialVersionUID = 20250328L; // Example version ID
+    private static final long serialVersionUID = 20250328L;
 
     private PublicKey sender;
     private PublicKey receiver;
     private double value;
     private String data;
     private long nonce;
-    private byte[] signature; // Digital signature of the transaction
+    private String signature; 
 
 
     /**
@@ -31,7 +31,7 @@ public class Transaction implements Serializable {
      * @param nonce     The nonce for this transaction.
      * @param signature The digital signature of the transaction.
      */
-    public Transaction(PublicKey sender, PublicKey receiver, double value, String data, long nonce, byte[] signature) {
+    public Transaction(PublicKey sender, PublicKey receiver, double value, String data, long nonce, String signature) {
         this.sender = sender;
         this.receiver = receiver;
         this.value = value;
@@ -101,7 +101,7 @@ public class Transaction implements Serializable {
                 ", value=" + value +
                 ", data='" + data + '\'' +
                 ", nonce=" + nonce +
-                ", signature=" + ((signature != null) ? Base64.getEncoder().encodeToString(signature) : "null") + // Show signature as Base64
+                ", signature=" + signature +
                 '}';
     }
 

@@ -32,9 +32,8 @@ public class Client {
     private final String baseUrl;
     private final HttpClient httpClient;
     private int clientPort;
-    private PublicKey publicKey;    
-    private PrivateKey privateKey; 
-
+    private PublicKey publicKey;
+    private PrivateKey privateKey;
 
     /**
      * Constructor for Client.
@@ -61,7 +60,8 @@ public class Client {
                 .build();
         
         this.clientPort = 10000 + Math.abs(clientId.hashCode() % 10000);
-        
+        loadClientKeys();
+
         System.out.println("Blockchain client initialized with ID: " + clientId);
         System.out.println("Connected to blockchain REST API at: " + baseUrl);
     }
@@ -69,34 +69,51 @@ public class Client {
     public void loadClientKeys() {
         try {
             // Load the JSON file
-            String jsonContent = new String(Files.readAllBytes(Paths.get("src/main/resources/setup.json")));
+            String jsonFilePath = "src/main/resources/accounts.json"; // Updated to match the correct file name
+            String jsonContent = new String(Files.readAllBytes(Paths.get(jsonFilePath)));
             JSONObject json = new JSONObject(jsonContent);
             JSONArray clients = json.getJSONArray("clients");
-            
+    
+            boolean clientFound = false;
+    
             for (int i = 0; i < clients.length(); i++) {
                 JSONObject client = clients.getJSONObject(i);
-                
+    
                 if (client.getString("name").equals(this.clientId)) {
-                    String publicKeyPath = client.getString("publicKeyPath");
-                    String privateKeyPath = client.getString("privateKeyPath");
-                    
+                    clientFound = true;
+    
+                    String publicKeyPath = client.optString("publicKeyPath", null);
+                    String privateKeyPath = client.optString("privateKeyPath", null);
+    
+                    if (publicKeyPath == null || privateKeyPath == null) {
+                        throw new IllegalArgumentException("Missing key paths for client: " + this.clientId);
+                    }
+    
                     File publicKeyFile = new File(publicKeyPath);
                     File privateKeyFile = new File(privateKeyPath);
-                    
+    
                     if (!publicKeyFile.exists() || !privateKeyFile.exists()) {
                         generateKeyPair(publicKeyPath, privateKeyPath);
                     }
-                    publicKey = KeyManager.loadPublicKeyFromFile(publicKeyPath);
-                    privateKey = KeyManager.loadPrivateKeyFromFile(privateKeyPath);
+    
+                    this.publicKey = KeyManager.loadPublicKeyFromFile(publicKeyPath);
+                    this.privateKey = KeyManager.loadPrivateKeyFromFile(privateKeyPath);
                     break;
                 }
             }
-            
+    
+            if (!clientFound) {
+                throw new IllegalArgumentException("Client ID not found in accounts.json: " + this.clientId);
+            }
+    
+        } catch (IOException e) {
+            System.err.println("Error reading JSON file: " + e.getMessage());
+            e.printStackTrace();
         } catch (Exception e) {
+            System.err.println("Error loading client keys: " + e.getMessage());
             e.printStackTrace();
         }
     }
-
     private void generateKeyPair(String publicKeyPath, String privateKeyPath) {
         try {
             // Generate RSA key pair

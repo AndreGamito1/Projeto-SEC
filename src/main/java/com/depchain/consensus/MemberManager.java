@@ -96,9 +96,7 @@ public class MemberManager {
                 return;
             }
     
-            Message message = new Message(payload, command);
-            System.out.println("Sending Message " + payload + " "+ command);
-            memberLinks.get(memberName).sendMessage(message);
+            memberLinks.get(memberName).sendMessage(payload, command);
             Logger.log(Logger.MEMBER, "Sent message to " + memberName + ": command=\"" + command + "\"");
         } catch (Exception e) {
             Logger.log(Logger.MEMBER, "Error sending message to " + memberName + ": " + e.getMessage());
@@ -114,7 +112,8 @@ public class MemberManager {
             PrivateKey privateKey = keyManager.getPrivateKey(sourceId);
             String decryptedPayload = Encryption.decryptWithRsa(encryptedPayload, privateKey);
             String decryptedCommand = Encryption.decryptWithRsa(encryptedCommand, privateKey);
-            decryptedMessage = new Message(decryptedPayload, decryptedCommand);
+            String decryptedAesKey = Encryption.decryptWithRsa(authMessage.getAesKey(), privateKey);
+            decryptedMessage = new Message(decryptedPayload, decryptedCommand, decryptedAesKey);
 
             Logger.log(Logger.MEMBER, "Received message from " + sourceId + ": command=\"" + decryptedMessage.getCommand() + "\"");
             return decryptedMessage;

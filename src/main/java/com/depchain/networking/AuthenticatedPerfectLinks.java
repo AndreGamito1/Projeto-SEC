@@ -1,7 +1,11 @@
 package com.depchain.networking;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
+
+import javax.crypto.SecretKey;
+
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -17,6 +21,7 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
     private String destinationEntity; 
     private PublicKey endPointKey;
     private PrivateKey hostPrivateKey;
+    private SecretKey aesKey;
     
     /**
      * Constructor for AuthenticatedPerfectLinks.
@@ -34,6 +39,7 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
             this.received = new ArrayList<>();
             this.endPointKey = endPointKey;
             this.hostPrivateKey = hostPrivateKey;
+            this.aesKey = Encryption.generateAesKey();
             Logger.log(Logger.AUTH_LINKS, "AuthenticatedPerfectLinks initialized for: " + destinationEntity);
         } catch (Exception e) {
             e.printStackTrace();
@@ -55,14 +61,18 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
      * @param message The message to send
      * @throws Exception If encryption or sending fails
      */
-    public void sendMessage(Message message) throws Exception {
+    public void sendMessage(String payload, String command) throws Exception {
         try {
-            // Encrypt payload and command using RSA
-            String encryptedPayload = Encryption.encryptWithRsa(message.getPayload(), this.endPointKey);
-            String encryptedCommand = Encryption.encryptWithRsa(message.getCommand(), this.endPointKey);
+
+            String encryptedPayload = Encryption.encryptWithAes(payload, aesKey);
+            String encryptedCommand = Encryption.encryptWithAes(command, aesKey);
+
+            // Encrypt AES key with RSA
+            String encryptedAesKey = Encryption.encryptWithRsa(Base64.getEncoder().encodeToString(aesKey.getEncoded()), this.endPointKey);
             
-            // Create message with encrypted content
-            Message encryptedMessage = new Message(encryptedPayload, encryptedCommand);
+
+            Message encryptedMessage = new Message(encryptedPayload, encryptedCommand, encryptedAesKey);
+
             
             // Create authentication hash from the encrypted payload
             String authString = createHash(encryptedMessage.getPayload());
@@ -101,12 +111,20 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
             // Verify authentication hash
             if (verifyHash(authMessage)) {
                 try {
-                    // Decrypt payload and command
-                    String decryptedPayload = Encryption.decryptWithRsa(authMessage.getPayload(), hostPrivateKey);
-                    String decryptedCommand = Encryption.decryptWithRsa(authMessage.getCommand(), hostPrivateKey);
+                    String encryptedPayload = authMessage.getPayload();
+                    String encryptedCommand = authMessage.getCommand();
+                    String encryptedAesKey = authMessage.getAesKey();
                     
+                     // Decrypt AES key with RSA
+                    String aesKeyString = Encryption.decryptWithRsa(encryptedAesKey, this.hostPrivateKey);
+                    SecretKey aesKey = Encryption.decodeAesKey(Base64.getDecoder().decode(aesKeyString));
+
+                    // Decrypt payload and command with AES
+                    String decryptedPayload = Encryption.decryptWithAes(encryptedPayload, aesKey);
+                    String decryptedCommand = Encryption.decryptWithAes(encryptedCommand, aesKey);
+
                     // Create a new message with decrypted content
-                    Message decryptedMessage = new Message(decryptedPayload, decryptedCommand);
+                    Message decryptedMessage = new Message(decryptedPayload, decryptedCommand, aesKeyString);
                     
                     // Use original auth string from the encrypted message
                     AuthenticatedMessage processedMessage = new AuthenticatedMessage(decryptedMessage, authMessage.getAuthString());
