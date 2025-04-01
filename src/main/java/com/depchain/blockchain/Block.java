@@ -1,122 +1,153 @@
 package com.depchain.blockchain;
 
-
-import java.util.List;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
 
 /**
- * Represents a block in a blockchain.  A block contains a set of transactions,
- * a timestamp, a reference to the previous block, and a hash of its contents.
+ * Represents a block in the blockchain.
+ * Each block contains a list of transactions and header information.
  */
-public class Block {
-
-    private int blockNumber;
+public class Block implements Serializable {
+    private static final long serialVersionUID = 1L;
+    
+    private String hash;
     private String previousHash;
     private List<Transaction> transactions;
-    private String blockHash;
-
+    
+    
     /**
-     * Constructs a new Block object.
-     *
-     * @param blockNumber  The block number.
-     * @param previousHash The hash of the previous block.
-     * @param transactions The list of transactions in the block.
-     * @param blockHash    The hash of the block.
+     * Creates a new block with the given parameters
+     * 
+     * @param blockId Unique identifier for this block
+     * @param previousHash Hash of the previous block in the chain
+     * @param transactions List of transactions included in this block
      */
-    public Block(int blockNumber, String previousHash, List<Transaction> transactions, String blockHash) {
-        this.blockNumber = blockNumber;
+    public Block(String previousHash, List<Transaction> transactions) {
         this.previousHash = previousHash;
-        this.transactions = (transactions != null) ? new ArrayList<>(transactions) : new ArrayList<>(); // Defensive copy in constructor!  Handles null gracefully
-        this.blockHash = blockHash;
+        this.transactions = transactions != null ? transactions : new ArrayList<>();
+        this.hash = calculateHash(); // Initial hash calculation
     }
-
-
+    
     /**
-     * Returns the block number.
-     *
-     * @return The block number.
+     * Default constructor for deserialization
      */
-    public int getBlockNumber() {
-        return blockNumber;
+    public Block() {
+        this.transactions = new ArrayList<>();
     }
-
+    
     /**
-     * Sets the block number.
-     *
-     * @param blockNumber The new block number.
+     * Calculates the hash of this block based on its contents
+     * 
+     * @return A hash string representing this block's contents
      */
-    public void setBlockNumber(int blockNumber) {
-        this.blockNumber = blockNumber;
+    public String calculateHash() {
+        // This is a placeholder - implement your actual hashing algorithm
+        String dataToHash = transactions.toString();
+        
+        // Use a proper hashing algorithm in production (SHA-256, etc.)
+        // For example: return DigestUtils.sha256Hex(dataToHash);
+        return "hash_of_" + dataToHash.hashCode();
     }
-
+    
     /**
-     * Returns the hash of the previous block.
-     *
-     * @return The previous block's hash.
+     * Serializes this block to a byte array
+     * 
+     * @return Byte array containing the serialized block data
+     * @throws IOException If serialization fails
      */
+    public byte[] serializeBlock() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(baos);
+        
+        // Write block header information
+        dos.writeUTF(hash);
+        dos.writeUTF(previousHash);
+
+        // Write transaction count
+        dos.writeInt(transactions.size());
+        
+        // Write each transaction in the block
+        for (Transaction transaction : transactions) {
+            dos.writeUTF(transaction.getSender());
+            dos.writeUTF(transaction.getReceiver());
+            dos.writeDouble(transaction.getAmount());
+            dos.writeUTF(transaction.getSignature());
+        }
+        
+        // Write block hash
+        dos.writeUTF(hash);
+        
+        dos.flush();
+        return baos.toByteArray();
+    }
+    
+    /**
+     * Converts this block to a Base64 encoded string for transmission
+     * 
+     * @return Base64 encoded string representation of this block
+     * @throws IOException If serialization fails
+     */
+    public String toBase64String() throws IOException {
+        return Base64.getEncoder().encodeToString(serializeBlock());
+    }
+    
+    /**
+     * Adds a transaction to this block if it's not already mined
+     * 
+     * @param transaction The transaction to add
+     * @return true if the transaction was added, false if the block is already mined
+     */
+    public boolean addTransaction(Transaction transaction) {
+        // Don't allow adding transactions if block is already mined
+        if (!previousHash.equals("0")) {
+            return false;
+        }
+        
+        if (transaction == null) {
+            return false;
+        }
+
+        transactions.add(transaction);
+        return true;
+    }
+    
+    // Getters and setters
+    
+    
     public String getPreviousHash() {
         return previousHash;
     }
-
-    /**
-     * Sets the hash of the previous block.
-     *
-     * @param previousHash The new previous block hash.
-     */
+    
     public void setPreviousHash(String previousHash) {
         this.previousHash = previousHash;
     }
-
-    /**
-     * Returns a *defensive copy* of the list of transactions in the block.
-     * This prevents external code from modifying the block's transaction list directly.
-     *
-     * @return A new list containing the transactions.
-     */
+    
     public List<Transaction> getTransactions() {
-        return new ArrayList<>(transactions); // Return a defensive copy!
+        return transactions;
     }
-
-    /**
-     * Sets the list of transactions in the block, creating a *defensive copy* to
-     * protect the block's internal state.
-     *
-     * @param transactions The new list of transactions.
-     */
+    
     public void setTransactions(List<Transaction> transactions) {
-        this.transactions = (transactions != null) ? new ArrayList<>(transactions) : new ArrayList<>(); // Defensive copy in setter! Handles null.
+        this.transactions = transactions;
     }
-
-    /**
-     * Returns the hash of the block.
-     *
-     * @return The block hash.
-     */
-    public String getBlockHash() {
-        return blockHash;
+    
+    public String getHash() {
+        return hash;
     }
-
-    /**
-     * Sets the hash of the block.
-     *
-     * @param blockHash The new block hash.
-     */
-    public void setBlockHash(String blockHash) {
-        this.blockHash = blockHash;
+    
+    public void setHash(String hash) {
+        this.hash = hash;
     }
-
-    /**
-     * Returns a string representation of the block.  Useful for debugging.
-     *
-     * @return A string representation of the block.
-     */
     @Override
     public String toString() {
         return "Block{" +
-                "blockNumber=" + blockNumber +
-                ", previousHash='" + previousHash + '\'' +
-                ", transactions=" + transactions +
-                ", blockHash='" + blockHash + '\'' +
-                '}';
+               ", previousHash='" + previousHash + '\'' +
+               ", transactions=" + transactions.size() +
+               ", hash='" + hash + '\'' +
+               '}';
     }
 }

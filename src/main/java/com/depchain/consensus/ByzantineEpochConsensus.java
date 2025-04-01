@@ -45,12 +45,12 @@ public class ByzantineEpochConsensus {
         writeset.add(state);
     }
 
-    public void handleProposeMessage(Message message) {
+    public void handleProposeMessage(String serializedBlock) {
         int currentTimestamp = epochState.getTimeStamp();
         Logger.log(Logger.MEMBER, "Current timestamp: " + currentTimestamp);
         int nextTimestamp;
         nextTimestamp = currentTimestamp + 1;
-        String value = message.getPayload();
+        String value = serializedBlock;
         EpochState proposedState = new EpochState(nextTimestamp, value);
         conditionalCollect.input(proposedState);
     }

@@ -4,6 +4,7 @@ import com.depchain.utils.*;
 
 import java.util.List;
 
+import com.depchain.blockchain.Block;
 import com.depchain.networking.*;
 
 public class MemberRole implements Role {
@@ -39,7 +40,7 @@ public class MemberRole implements Role {
                         break;
                     case "READ":
                         System.out.println("Processing READ Message: " + message.getCommand() + " from " + sourceId);
-                        handleProposeMessage(message);
+                        handleReadMessage(message);
                         break;
                     default:
                         System.out.println("Unknown command: " + message.getCommand());
@@ -76,8 +77,13 @@ public class MemberRole implements Role {
     }
 
     @Override
-    public void handleProposeMessage(Message message) {
-        member.getConsensus().handleProposeMessage(message);
+    public void ProposeBlock(Block block) {
+        // Member-specific block proposal handling
+    }
+
+    @Override
+    public void handleReadMessage(Message message) {
+        member.getConsensus().handleProposeMessage(message.getPayload());
     }
 
     @Override

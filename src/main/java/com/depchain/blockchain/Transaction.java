@@ -1,111 +1,77 @@
 package com.depchain.blockchain;
 
-import java.io.*; // Import necessary IO classes
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.util.Arrays;
-import java.util.Base64; // Import Base64
+import java.security.Signature;
+import java.util.Base64;
+
+import com.depchain.utils.Encryption;
 
 /**
- * Represents a transaction in a blockchain.
- * Includes static methods for serialization to/from Base64 String.
+ * Represents a transaction in the blockchain.
+ * Each transaction contains information about the sender, receiver, amount, and signature.
  */
 public class Transaction implements Serializable {
+    private static final long serialVersionUID = 1L;
 
-    private static final long serialVersionUID = 20250328L;
-
-    private PublicKey sender;
-    private PublicKey receiver;
-    private double value;
-    private String data;
-    private long nonce;
-    private String signature; 
-
-
+    private String sender;
+    private String data; // For Smart Contracts
+    private String receiver;
+    private double amount;
+    private String signature;
+    
     /**
-     * Constructs a new Transaction object.
-     *
-     * @param sender    The public key of the sender.
-     * @param receiver  The public key of the receiver.
-     * @param value     The amount of value being transferred.
-     * @param data      Arbitrary data associated with the transaction.
-     * @param nonce     The nonce for this transaction.
-     * @param signature The digital signature of the transaction.
+     * Creates a new transaction with the given parameters
+     * 
+     * @param sender The address/ID of the sender
+     * @param receiver The address/ID of the receiver
+     * @param amount The transaction amount
      */
-    public Transaction(PublicKey sender, PublicKey receiver, double value, String data, long nonce, String signature) {
+    public Transaction(String sender, String receiver, double amount, String data, String signature) {
         this.sender = sender;
         this.receiver = receiver;
-        this.value = value;
+        this.amount = amount;
         this.data = data;
-        this.nonce = nonce;
+        this.signature = signature;
+        }
+    
+    /**
+     * Default constructor for deserialization
+     */
+    public Transaction() {
+    }
+    
+    /**
+     * Signs this transaction with the provided signature
+     * 
+     * @param signature The digital signature for this transaction
+     */
+    public void setSignature(String signature) {
         this.signature = signature;
     }
-
-    // --- Getters and Setters ---
-
-    public PublicKey getSender() {
-        return sender;
-    }
-
-    public void setSender(PublicKey sender) {
-        this.sender = sender;
-    }
-
-    public PublicKey getReceiver() {
-        return receiver;
-    }
-
-    public void setReceiver(PublicKey receiver) {
-        this.receiver = receiver;
-    }
-
-    public double getValue() {
-        return value;
-    }
-
-    public void setValue(double value) {
-        this.value = value;
-    }
-
-    public String getData() {
-        return data;
-    }
-
-    public void setData(String data) {
-        this.data = data;
-    }
-
-    public long getNonce() {
-        return nonce;
-    }
-
-    public void setNonce(long nonce) {
-        this.nonce = nonce;
-    }
-
-    public byte[] getSignature() {
-        return (signature == null) ? null : signature.clone();
-    }
-
-    public void setSignature(byte[] signature) {
-        this.signature = (signature == null) ? null : signature.clone();
+    
+    /**
+     * Calculates a hash of this transaction's data
+     * 
+     * @return A hash string for this transaction
+     */
+    public String calculateHash() {
+        // This is a placeholder - implement your actual hashing algorithm
+        String data = sender + receiver + Double.toString(amount);
+        
+        // Use a proper hashing algorithm in production (SHA-256, etc.)
+        // For example: return DigestUtils.sha256Hex(data);
+        return "hash_of_" + data.hashCode();
     }
 
 
-    @Override
-    public String toString() {
-        String senderStr = (sender != null) ? sender.getClass().getSimpleName() + "@" + Integer.toHexString(sender.hashCode()) : "null";
-        String receiverStr = (receiver != null) ? receiver.getClass().getSimpleName() + "@" + Integer.toHexString(receiver.hashCode()) : "null";
-        return "Transaction{" +
-                "sender=" + senderStr + 
-                ", receiver=" + receiverStr +
-                ", value=" + value +
-                ", data='" + data + '\'' +
-                ", nonce=" + nonce +
-                ", signature=" + signature +
-                '}';
-    }
-
-    // --- Static Serialization / Deserialization Methods ---
+     // --- Static Serialization / Deserialization Methods ---
 
     /**
      * Serializes the given Transaction object into a Base64 encoded String.
@@ -156,4 +122,104 @@ public class Transaction implements Serializable {
         } 
     }
 
+
+    /**
+     * Calculates a hash of this transaction's data to be signed
+     */
+    private String getDataToSign() {
+        String data = sender + receiver + Double.toString(amount);
+        try {
+            // Create a message digest using SHA-256
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(data.getBytes("UTF-8"));
+            return Base64.getEncoder().encodeToString(digest);
+        } catch (Exception e) {
+            System.err.println("Error creating hash: " + e.getMessage());
+            return "";
+        }
+    }
+
+    /**
+     * Signs this transaction with the sender's private key
+     */
+    public boolean sign(PrivateKey privateKey) {
+        try {
+            // Get the digest of data to sign (much smaller than the full data)
+            String dataDigest = getDataToSign();
+            
+            // Sign the digest instead of the full data
+            String signatureData = Encryption.encryptWithPrivateKey(dataDigest, privateKey);
+            if (signatureData == null) { 
+                return false; 
+            }
+            
+            this.signature = signatureData;
+            return true;
+        } catch (Exception e) {
+            System.err.println("Error signing transaction: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Verifies the transaction signature
+     */
+    public boolean isValid(PublicKey publicKey) {
+        try {
+            if (signature == null || signature.isEmpty()) {
+                return false;
+            }
+            
+            String dataDigest = getDataToSign();
+            String decryptedSignature = Encryption.decryptWithPublicKey(signature, publicKey);
+            
+            if (decryptedSignature == null) {
+                return false;
+            }
+            
+            return decryptedSignature.equals(dataDigest);
+        } catch (Exception e) {
+            System.err.println("Error verifying transaction: " + e.getMessage());
+            return false;
+        }
+    }
+
+    // Getters and setters
+    
+    public String getSender() {
+        return sender;
+    }
+    
+    public void setSender(String sender) {
+        this.sender = sender;
+    }
+    
+    public String getReceiver() {
+        return receiver;
+    }
+    
+    public void setReceiver(String receiver) {
+        this.receiver = receiver;
+    }
+    
+    public double getAmount() {
+        return amount;
+    }
+    
+    public void setAmount(double amount) {
+        this.amount = amount;
+    }
+    
+    public String getSignature() {
+        return signature;
+    }
+    
+    @Override
+    public String toString() {
+        return "Transaction{" +
+               "sender='" + sender + '\'' +
+               ", receiver='" + receiver + '\'' +
+               ", amount=" + amount +
+               '}';
+    }
 }

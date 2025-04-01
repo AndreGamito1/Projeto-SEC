@@ -213,39 +213,17 @@ public class ClientLibrary {
      * @throws Exception If sending fails
      */
     public boolean appendToBlockchain(String senderName, String receiverName, double amount, String senderSignature) throws Exception {
-        PublicKey senderKey = null;
-        PublicKey receiverKey = null;
-
-        // 1. Get Public Keys
-        try {
-            senderKey = clientManager.getPublicKey(senderName);
-            receiverKey = clientManager.getPublicKey(receiverName);
-        } catch (Exception e) {
-            System.err.println("ClientLib: Error retrieving public keys: " + e.getMessage());
-            throw new Exception("Failed to get public keys", e);
-        }
-        if (senderKey == null) {
-            Logger.log(Logger.CLIENT_LIBRARY, "Error: Sender PublicKey not found for " + senderName);
-            throw new Exception("Could not find PublicKey for sender: " + senderName);
-        }
-        if (receiverKey == null) {
-            Logger.log(Logger.CLIENT_LIBRARY, "Error: Receiver PublicKey not found for " + receiverName);
-            throw new Exception("Could not find PublicKey for receiver: " + receiverName);
-        }
-
         // 2. Prepare other Transaction fields
         String transactionData = "";
-        long nonce = System.currentTimeMillis();
         String signature = senderSignature;
 
         // 3. Create the Transaction Object
         Transaction transaction = new Transaction(
-                senderKey,
-                receiverKey,
+                senderName,
+                receiverName,
                 amount,
-                transactionData, 
-                nonce,
-                signature 
+                transactionData,
+                signature
         );
 
         // 4. Serialize the Transaction to send
@@ -264,7 +242,7 @@ public class ClientLibrary {
         // 5. Send the *serialized transaction* to the leader
         try {
             sendToLeader(serializedTransaction, "TRANSACTION");
-            Logger.log(Logger.CLIENT_LIBRARY, "Sent PROPOSE request for transaction. Nonce: " + nonce); 
+            Logger.log(Logger.CLIENT_LIBRARY, "Sent PROPOSE request for transaction."); 
             return true;
 
         } catch (Exception e) {

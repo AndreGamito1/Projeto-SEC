@@ -15,14 +15,11 @@
 #### Client
 - Criar "See Balance": 
     - No client.java & clientLibrary.java
-- Criar "Send Money": 
-    - No client.java & clientLibrary.java
-    - Temos de enviar um objecto "trasaction" ou um json e o leader cria o object "transaction" de accordo com o json
 
 #### Leader
-- Interpertar resposta do client e formar um bloco (fazer transaction class --> bloco class)
-- Fazer o consenso sobre o bloco
+- Fazer o consenso sobre o bloco (semi feito)
 - Atualizar o world state
+- Verificar Signature
 
 ### Passos de Implementação
 

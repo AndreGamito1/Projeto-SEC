@@ -90,12 +90,10 @@ public class Member {
     }
 
     private Block createGenesisBlockObject(WorldState worldState) {
-        int blockNumber = 0; // Genesis block number
         String previousHash = "0"; // No previous hash for the genesis block
         List<Transaction> transactions = new ArrayList<>(); // No transactions in the genesis block
-        String blockHash = "genesis_hash"; // Placeholder hash
 
-        return new Block(blockNumber, previousHash, transactions, blockHash);
+        return new Block(previousHash, transactions);
     }
 
 
@@ -227,6 +225,9 @@ public class Member {
         return memberManager.getQuorumSize();
     }
 
+    public String getPreviousHash() {
+        return new_blockchain.get(new_blockchain.size() - 1).getHash();
+    }
     private boolean isTransactionValid(Transaction tx, WorldState state) {
         // Aqui deves verificar:
         // - Assinatura válida
@@ -241,7 +242,7 @@ public class Member {
     
         try {
             double balance = new java.math.BigDecimal(sender.getBalance()).doubleValue();
-            return balance >= tx.getValue(); // saldo suficiente
+            return balance >= tx.getAmount(); // saldo suficiente
         } catch (Exception e) {
             return false;
         }
@@ -253,7 +254,7 @@ public class Member {
     
         if (sender == null || receiver == null) return;
     
-        java.math.BigDecimal value = java.math.BigDecimal.valueOf(tx.getValue());
+        java.math.BigDecimal value = java.math.BigDecimal.valueOf(tx.getAmount());
         java.math.BigDecimal senderBalance = new java.math.BigDecimal(sender.getBalance());
         java.math.BigDecimal receiverBalance = new java.math.BigDecimal(receiver.getBalance());
     
