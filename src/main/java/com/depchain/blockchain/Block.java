@@ -76,6 +76,7 @@ public class Block implements Serializable {
             dos.writeUTF(transaction.getSender());
             dos.writeUTF(transaction.getReceiver());
             dos.writeDouble(transaction.getAmount());
+            dos.writeUTF(transaction.getData());
             dos.writeUTF(transaction.getSignature());
         }
         
@@ -103,11 +104,6 @@ public class Block implements Serializable {
      * @return true if the transaction was added, false if the block is already mined
      */
     public boolean addTransaction(Transaction transaction) {
-        // Don't allow adding transactions if block is already mined
-        if (!previousHash.equals("0")) {
-            return false;
-        }
-        
         if (transaction == null) {
             return false;
         }

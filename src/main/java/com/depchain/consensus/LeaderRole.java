@@ -1,6 +1,7 @@
 package com.depchain.consensus;
 
 import com.depchain.utils.Logger;
+import com.depchain.utils.Serialization;
 import com.depchain.networking.Message;
 import com.depchain.blockchain.Transaction;
 import com.depchain.blockchain.Block;
@@ -42,29 +43,23 @@ public class LeaderRole implements Role {
 
     @Override
     public void processMessage(String sourceId, AuthenticatedMessage message) {
-        System.out.println("Processing message with payload: " + message.getPayload());
         switch (message.getCommand()) {
             case "STATE":
                 handleStateMessage(message);
                 break;
             case "WRITE":
-                System.out.println("Processing WRITE Message: " + message.getCommand() + " from " + sourceId);
                 handleAckMessage(message);
                 break;
             case "ACCEPT":
-                System.out.println("Processing ACCEPT Message: " + message.getCommand() + " from " + sourceId);
                 handleAckMessage(message);
                 break;
             case "DECIDE":
-                System.out.println("Processing DECIDE Message: " + message.getCommand() + " from " + sourceId);
                 handleDecideMessage(message);
                 break;
             case "ABORT":
-                System.out.println("Processing ABORT Message: " + message.getCommand() + " from " + sourceId);
                 handleAbortMessage(message);
                 break;
             case "TRANSACTION":
-                System.out.println("Processing TRANSACTION Message: " + message.getCommand() + " from " + sourceId);
                 Transaction transaction;
                 String serializedTransaction;
                 try {
@@ -80,7 +75,6 @@ public class LeaderRole implements Role {
                     if (transaction == null) {
                         throw new IOException("Deserialization resulted in null object.");
                     }
-                    System.out.println("Received transaction: " + transaction);
                     addTransactionToPool(transaction);
                 } catch (Exception e) {
                     Logger.log(Logger.CLIENT_LIBRARY, "Error: Failed to deserialize transaction: " + e.getMessage());
@@ -100,15 +94,18 @@ public class LeaderRole implements Role {
         // Add the transaction to the pool
         transactionPool.add(transaction);
         Logger.log(Logger.LEADER_ERRORS, "Added transaction to pool. Current pool size: " + transactionPool.size());
-        
+    
         // Start timer if it's not already running and this is the first transaction
         if (!timerRunning && transactionPool.size() == 1) {
             startBlockTimer();
         }
-        
-        // If we have enough transactions, create a block immediately
+    
+        // If we have enough transactions, cancel the timer and create a block immediately
         if (transactionPool.size() >= MAX_TRANSACTIONS_PER_BLOCK) {
-            Logger.log(Logger.LEADER_ERRORS, "Transaction pool reached max size (" + MAX_TRANSACTIONS_PER_BLOCK + "). Creating block...");
+            // Cancel the current timer
+            blockTimer.cancel();
+            blockTimer = new Timer("BlockTimer");  // Create a new timer for future use            
+            Logger.log(Logger.LEADER_ERRORS, "Transaction pool reached max size (" + MAX_TRANSACTIONS_PER_BLOCK + "). Canceling timer and creating block...");
             createAndProposeBlock();
         }
     }
@@ -231,7 +228,7 @@ public class LeaderRole implements Role {
 
     @Override
     public void handleDecideMessage(Message message) {
-        Logger.log(Logger.MEMBER, "Received DECIDE message: " + message.getPayload());
+        Logger.log(Logger.MEMBER, "Received DECIDE message");
         member.getQuorumDecideMessages().add(message);
         Logger.log(Logger.MEMBER, "Quorum size for DECIDE's: " + member.getQuorumSize());
         

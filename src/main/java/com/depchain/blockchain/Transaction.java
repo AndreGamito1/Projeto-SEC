@@ -209,6 +209,14 @@ public class Transaction implements Serializable {
     public void setAmount(double amount) {
         this.amount = amount;
     }
+
+    public String getData() {
+        return data;
+    }
+
+    public void setData(String data) {
+        this.data = data;
+    }
     
     public String getSignature() {
         return signature;

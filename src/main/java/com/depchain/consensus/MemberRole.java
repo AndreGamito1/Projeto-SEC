@@ -21,7 +21,6 @@ public class MemberRole implements Role {
 
     @Override
     public void processMessage(String sourceId, AuthenticatedMessage message) throws Exception {
-            System.out.println("Processing message with payload: " + message.getPayload());
                 switch (message.getCommand()) {
                     case "CMD_KEY_EXCHANGE":
                         break;
@@ -31,15 +30,12 @@ public class MemberRole implements Role {
                         handleCollectedMessage(message);
                         break;
                     case "WRITE":
-                        System.out.println("Processing WRITE Message: " + message.getCommand() + " from " + sourceId);
                         handleAckMessage(message);
                         break;
                     case "ACCEPT":
-                        System.out.println("Processing ACCEPT Message: " + message.getCommand() + " from " + sourceId);
                         handleAckMessage(message);
                         break;
                     case "READ":
-                        System.out.println("Processing READ Message: " + message.getCommand() + " from " + sourceId);
                         handleReadMessage(message);
                         break;
                     default:
@@ -88,7 +84,7 @@ public class MemberRole implements Role {
 
     @Override
     public void handleAckMessage(Message message) {
-        Logger.log(Logger.MEMBER, "Received ACK message: " + message.getPayload());
+        Logger.log(Logger.MEMBER, "Received ACK message");
         member.getConsensus().handleAckMessage(message);
     }
 

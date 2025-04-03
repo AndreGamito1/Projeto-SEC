@@ -10,7 +10,6 @@ import javax.crypto.SecretKey;
 import com.depchain.networking.*;
 import com.depchain.utils.*;
 import com.depchain.blockchain.*;
-
 public class Member {
     private Role currentRole;
     protected Map<String, SecretKey> memberKeys;
@@ -18,8 +17,7 @@ public class Member {
     private MemberManager memberManager;
     private String name;
 
-    private List<EpochState> blockchain;
-    private List<Block> new_blockchain;
+    private List<Block> blockchain;
     private List<Message> quorumDecideMessages;
     private List<Message> quorumAbortMessages;
     private boolean working;
@@ -37,8 +35,8 @@ public class Member {
         this.working = false;
         this.quorumAbortMessages = new ArrayList<>();
         this.quorumDecideMessages = new ArrayList<>();
-        this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, blockchain);
-        this.new_blockchain = new ArrayList<>();
+        this.epochConsensus = new ByzantineEpochConsensus(this, memberManager);
+        this.blockchain = new ArrayList<>();
         System.out.println("Member created: " + name);
         setupMemberLinks();
 
@@ -69,10 +67,10 @@ public class Member {
             // --- Optional: Initialize the blockchain list with the Genesis Block ---
             Block genesisBlock = createGenesisBlockObject(this.worldState);
             if (genesisBlock != null) {
-                this.new_blockchain.add(genesisBlock);
+                this.blockchain.add(genesisBlock);
             }
 
-            System.out.println("Blockchain state: " + this.new_blockchain);
+            System.out.println("Blockchain state: " + this.blockchain);
 
         } catch (IOException e) {
             System.err.println("FATAL: Member " + name + " could not load genesis files ("
@@ -170,9 +168,15 @@ public class Member {
     }
 
     // Appends a value to the blockchain
-    public void addToBlockchain(EpochState state) {
-        blockchain.add(state);
-        setWorking(false);
+    public void addToBlockchain(String serializedBlock) {
+        Serialization deserializer = new Serialization();
+        Block block;
+        try {
+            block = deserializer.deserializeFromBase64(serializedBlock);
+            blockchain.add(block);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         Logger.log(Logger.MEMBER, "Updated blockchain: " + blockchain);
     }
 
@@ -184,8 +188,8 @@ public class Member {
         currentRole.handleAbortMessage(message);
     }   
 
-    public String getBlockchain() {
-        return blockchain.toString();
+    public List<Block> getBlockchain() {
+        return blockchain;
     }
     public List<Message> getQuorumDecideMessages() {
         return quorumDecideMessages;
@@ -201,14 +205,7 @@ public class Member {
             Logger.log(Logger.MEMBER, "Already working on consensus");
             return;
         }
-
-        if (blockchain.isEmpty()) {
-            this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, blockchain);
-
-        }
-        else {
-            this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, blockchain.get(blockchain.size() - 1), blockchain);
-        }
+        this.epochConsensus = new ByzantineEpochConsensus(this, memberManager);
     }
 
     public void setWorking(boolean working) {
@@ -226,7 +223,7 @@ public class Member {
     }
 
     public String getPreviousHash() {
-        return new_blockchain.get(new_blockchain.size() - 1).getHash();
+        return blockchain.get(blockchain.size() - 1).getHash();
     }
     private boolean isTransactionValid(Transaction tx, WorldState state) {
         // Aqui deves verificar:
