@@ -12,7 +12,7 @@ public class AuthenticatedMessage extends Message {
      * @param authString The authentication string
      */
     public AuthenticatedMessage(Message message, String authString) {
-        super(message.getPayload(), message.getCommand(), message.getAesKey()); 
+        super(message.getPayload(), message.getCommand(), message.getAesKey(), message.getSourceId()); 
         this.authString = authString;
         this.messageID = generateMessageID();
     }
@@ -26,7 +26,7 @@ public class AuthenticatedMessage extends Message {
      * @param messageID The message ID to use
      */
     public AuthenticatedMessage(Message message, String authString, String messageID) {
-        super(message.getPayload(), message.getCommand(), message.getAesKey()); 
+        super(message.getPayload(), message.getCommand(), message.getAesKey(), message.getSourceId()); 
         this.authString = authString;
         this.messageID = messageID;
     }

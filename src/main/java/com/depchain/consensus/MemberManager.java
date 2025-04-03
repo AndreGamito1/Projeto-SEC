@@ -18,7 +18,6 @@ public class MemberManager {
     private List<String> members = new ArrayList<>();                             //Array containing the names of all the members
     private Map<String, Integer> memberPorts = new HashMap<>();                   //The port number for each member
     private Map<String, AuthenticatedPerfectLinks> memberLinks = new HashMap<>(); //The authenticated links to each member
-    private Map<String, Integer> memberIndices = new HashMap<>();                 
 
     private String leaderName;
     private String name;                                                            //The name of the member
@@ -96,7 +95,7 @@ public class MemberManager {
                 return;
             }
     
-            memberLinks.get(memberName).sendMessage(payload, command);
+            memberLinks.get(memberName).sendMessage(payload, command, this.name);
             Logger.log(Logger.MEMBER, "Sent message to " + memberName + ": command=\"" + command + "\"");
         } catch (Exception e) {
             Logger.log(Logger.MEMBER, "Error sending message to " + memberName + ": " + e.getMessage());
@@ -113,7 +112,7 @@ public class MemberManager {
             String decryptedPayload = Encryption.decryptWithRsa(encryptedPayload, privateKey);
             String decryptedCommand = Encryption.decryptWithRsa(encryptedCommand, privateKey);
             String decryptedAesKey = Encryption.decryptWithRsa(authMessage.getAesKey(), privateKey);
-            decryptedMessage = new Message(decryptedPayload, decryptedCommand, decryptedAesKey);
+            decryptedMessage = new Message(decryptedPayload, decryptedCommand, decryptedAesKey, authMessage.getSourceId());
 
             Logger.log(Logger.MEMBER, "Received message from " + sourceId + ": command=\"" + decryptedMessage.getCommand() + "\"");
             return decryptedMessage;

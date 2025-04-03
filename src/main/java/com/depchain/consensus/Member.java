@@ -35,7 +35,6 @@ public class Member {
         this.working = false;
         this.quorumAbortMessages = new ArrayList<>();
         this.quorumDecideMessages = new ArrayList<>();
-        this.epochConsensus = new ByzantineEpochConsensus(this, memberManager);
         this.blockchain = new ArrayList<>();
         System.out.println("Member created: " + name);
         setupMemberLinks();
@@ -55,6 +54,7 @@ public class Member {
 
             // Load the WorldState using the classpath resource name and the map
             WorldState worldState = new WorldState();
+            this.worldState = worldState;
             worldState.loadGenesisState();
             
             // Print loaded accounts
@@ -65,10 +65,12 @@ public class Member {
 
 
             // --- Optional: Initialize the blockchain list with the Genesis Block ---
-            Block genesisBlock = createGenesisBlockObject(this.worldState);
+            Block genesisBlock = createGenesisBlockObject();
             if (genesisBlock != null) {
                 this.blockchain.add(genesisBlock);
             }
+
+            this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, worldState);
 
             System.out.println("Blockchain state: " + this.blockchain);
 
@@ -87,7 +89,7 @@ public class Member {
         start();
     }
 
-    private Block createGenesisBlockObject(WorldState worldState) {
+    private Block createGenesisBlockObject() {
         String previousHash = "0"; // No previous hash for the genesis block
         List<Transaction> transactions = new ArrayList<>(); // No transactions in the genesis block
 
@@ -107,6 +109,7 @@ public class Member {
 
                         while (!receivedMessages.isEmpty()) {
                             AuthenticatedMessage message = receivedMessages.remove(0);
+                            Logger.log(Logger.MEMBER, "Received message from " + message.getSourceId());
                             processMessage(link.getDestinationEntity(), message);
                         }
                     }
@@ -169,15 +172,18 @@ public class Member {
 
     // Appends a value to the blockchain
     public void addToBlockchain(String serializedBlock) {
-        Serialization deserializer = new Serialization();
         Block block;
         try {
-            block = deserializer.deserializeFromBase64(serializedBlock);
+            block = Block.deserializeFromBase64(serializedBlock);
             blockchain.add(block);
+            this.worldState.applyBlock(block);
         } catch (IOException e) {
             e.printStackTrace();
         }
+        System.out.println("----------------------- BLOCKCHAIN UPDATED ----------------------");
         Logger.log(Logger.MEMBER, "Updated blockchain: " + blockchain);
+        Logger.log(Logger.MEMBER, "Updated world state: " + this.worldState.toString());
+        System.out.println("-----------------------  ----------------------");
     }
 
     public void handleDecideMessage(AuthenticatedMessage message) throws Exception {
@@ -205,12 +211,12 @@ public class Member {
             Logger.log(Logger.MEMBER, "Already working on consensus");
             return;
         }
-        this.epochConsensus = new ByzantineEpochConsensus(this, memberManager);
+        this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, worldState);
     }
 
     public void setWorking(boolean working) {
         this.working = working;
-        Logger.log(Logger.MEMBER, "Working: " + working);
+        Logger.log(Logger.MEMBER, "----------------- Working: " + working);
     }
 
     public boolean isWorking() {
@@ -225,51 +231,4 @@ public class Member {
     public String getPreviousHash() {
         return blockchain.get(blockchain.size() - 1).getHash();
     }
-    private boolean isTransactionValid(Transaction tx, WorldState state) {
-        // Aqui deves verificar:
-        // - Assinatura válida
-        // - Sender existe
-        // - Saldo suficiente
-        // - Nonce correto (se usares nonce)
-        
-        AccountState sender = state.getAccount(tx.getSender().toString());
-        AccountState receiver = state.getAccount(tx.getReceiver().toString());
-    
-        if (sender == null || receiver == null) return false;
-    
-        try {
-            double balance = new java.math.BigDecimal(sender.getBalance()).doubleValue();
-            return balance >= tx.getAmount(); // saldo suficiente
-        } catch (Exception e) {
-            return false;
-        }
-    }
-    
-    private void applyTransaction(Transaction tx, WorldState state) {
-        AccountState sender = state.getAccount(tx.getSender().toString());
-        AccountState receiver = state.getAccount(tx.getReceiver().toString());
-    
-        if (sender == null || receiver == null) return;
-    
-        java.math.BigDecimal value = java.math.BigDecimal.valueOf(tx.getAmount());
-        java.math.BigDecimal senderBalance = new java.math.BigDecimal(sender.getBalance());
-        java.math.BigDecimal receiverBalance = new java.math.BigDecimal(receiver.getBalance());
-    
-        sender.setBalance(senderBalance.subtract(value).toString());
-        receiver.setBalance(receiverBalance.add(value).toString());
-    } 
-    
-    public boolean areAllTransactionsValid(Block block) {
-        WorldState copyWorldState = WorldState.deepCopy(this.worldState); // cópia profunda do estado atual da worldstate
-    
-        for (Transaction tx : block.getTransactions()) {
-            if (!isTransactionValid(tx, copyWorldState)) {
-                return false;
-            }
-            applyTransaction(tx, copyWorldState); // aplica a transação à cópia para atualizar o estado
-        }
-    
-        return true;
-    }
-
 }

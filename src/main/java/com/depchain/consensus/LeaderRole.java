@@ -1,7 +1,6 @@
 package com.depchain.consensus;
 
 import com.depchain.utils.Logger;
-import com.depchain.utils.Serialization;
 import com.depchain.networking.Message;
 import com.depchain.blockchain.Transaction;
 import com.depchain.blockchain.Block;
@@ -48,9 +47,11 @@ public class LeaderRole implements Role {
                 handleStateMessage(message);
                 break;
             case "WRITE":
+                System.out.println("............... Received WRITE message: " + sourceId);
                 handleAckMessage(message);
                 break;
             case "ACCEPT":
+                System.out.println("............... Received ACCEPT message: " + sourceId);
                 handleAckMessage(message);
                 break;
             case "DECIDE":
@@ -71,10 +72,10 @@ public class LeaderRole implements Role {
 
                     // Use the correct deserialization method
                     transaction = Transaction.deserializeFromString(serializedTransaction);
-
                     if (transaction == null) {
                         throw new IOException("Deserialization resulted in null object.");
                     }
+                    System.out.println(transaction.toString());
                     addTransactionToPool(transaction);
                 } catch (Exception e) {
                     Logger.log(Logger.CLIENT_LIBRARY, "Error: Failed to deserialize transaction: " + e.getMessage());

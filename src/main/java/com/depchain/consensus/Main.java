@@ -8,7 +8,7 @@ public class Main {
     public static void main(String[] args) {
         StringBuilder logArgBuilder = new StringBuilder("--log=");
          logArgBuilder//.append(Logger.STUBBORN_LINKS).append(",")
-                      //.append(Logger.AUTH_LINKS).append(",")
+                      .append(Logger.AUTH_LINKS).append(",")
                       .append(Logger.LEADER_ERRORS).append(",")
                       .append(Logger.CLIENT_LIBRARY).append(",")
                       .append(Logger.MEMBER).append(",")

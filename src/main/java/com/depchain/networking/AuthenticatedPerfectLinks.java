@@ -61,7 +61,7 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
      * @param message The message to send
      * @throws Exception If encryption or sending fails
      */
-    public void sendMessage(String payload, String command) throws Exception {
+    public void sendMessage(String payload, String command, String sourceId) throws Exception {
         try {
 
             String encryptedPayload = Encryption.encryptWithAes(payload, aesKey);
@@ -71,7 +71,7 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
             String encryptedAesKey = Encryption.encryptWithRsa(Base64.getEncoder().encodeToString(aesKey.getEncoded()), this.endPointKey);
             
 
-            Message encryptedMessage = new Message(encryptedPayload, encryptedCommand, encryptedAesKey);
+            Message encryptedMessage = new Message(encryptedPayload, encryptedCommand, encryptedAesKey, sourceId);
 
             
             // Create authentication hash from the encrypted payload
@@ -124,7 +124,7 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
                     String decryptedCommand = Encryption.decryptWithAes(encryptedCommand, aesKey);
 
                     // Create a new message with decrypted content
-                    Message decryptedMessage = new Message(decryptedPayload, decryptedCommand, aesKeyString);
+                    Message decryptedMessage = new Message(decryptedPayload, decryptedCommand, aesKeyString, authMessage.getSourceId());
                     
                     // Use original auth string from the encrypted message
                     AuthenticatedMessage processedMessage = new AuthenticatedMessage(decryptedMessage, authMessage.getAuthString());

@@ -1,9 +1,11 @@
 package com.depchain.consensus;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.function.Predicate;
 import org.json.JSONObject;
 
+import com.depchain.blockchain.Block;
 import com.depchain.networking.AuthenticatedMessage;
 import com.depchain.utils.*;
 
@@ -254,7 +256,7 @@ public class ConditionalCollect {
                 abort(); // Send ABORT message to all members
             }
         } catch (Exception e) {
-            Logger.log(Logger.CONDITIONAL_COLLECT, "Error collecting States, aborting: " + e.getMessage());
+            Logger.log(Logger.CONDITIONAL_COLLECT, "Error collecting States, aborting: " + e.getMessage() + e.getStackTrace() + e.getCause());
         }
     }
 
@@ -296,7 +298,6 @@ public class ConditionalCollect {
                     // For null quorum, follow leader value logic
                     if (leaderValue != null && !leaderValue.toString().equals("null")) {
                         Logger.log(Logger.CONDITIONAL_COLLECT, "Null Quorum found, adopting leader's value");
-                        //adoptValue(leaderValue);
                         consensusLoop(leaderValue);
                     } else {
                         Logger.log(Logger.CONDITIONAL_COLLECT, "Quorum for null found and no leader value, aborting");
@@ -324,6 +325,20 @@ public class ConditionalCollect {
     }
 
     private void consensusLoop(EpochState value) {
+        try {
+            Block block = new Block();
+            block = Block.deserializeFromBase64(value.getValue());
+            if (!epochConsensus.getWorldState().areAllTransactionsValid(block)) {
+                Logger.log(Logger.CONDITIONAL_COLLECT, "Block is not valid, aborting");
+                abort();
+                return;
+            }
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            Logger.log(Logger.CONDITIONAL_COLLECT, "Error deserializing block");
+            abort();
+            return;
+        }
         // Phase 1: Send WRITE messages to all members
         for (String memberId : memberManager.getMemberLinks().keySet()) {
             String payload = createAck(value);

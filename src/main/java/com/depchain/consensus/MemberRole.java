@@ -30,9 +30,11 @@ public class MemberRole implements Role {
                         handleCollectedMessage(message);
                         break;
                     case "WRITE":
+                        System.out.println("............... Received WRITE message: " + sourceId);
                         handleAckMessage(message);
                         break;
                     case "ACCEPT":
+                        System.out.println("............... Received ACCEPT message: " + sourceId);
                         handleAckMessage(message);
                         break;
                     case "READ":
@@ -84,7 +86,6 @@ public class MemberRole implements Role {
 
     @Override
     public void handleAckMessage(Message message) {
-        Logger.log(Logger.MEMBER, "Received ACK message");
         member.getConsensus().handleAckMessage(message);
     }
 

@@ -1,5 +1,6 @@
 package com.depchain.blockchain;
 
+import com.depchain.utils.Logger;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -20,23 +21,28 @@ import java.util.UUID;
 
 public class WorldState {
     private Map<String, AccountState> accounts;
+    private Map<String, String> nameAddress; // Map to store address and name pairs
     private static final String GENESIS_BLOCK_PATH = "src/main/resources/genesisBlock.json";
     private static final String ACCOUNTS_FILE_PATH = "src/main/resources/accounts.json";
     private static final String KEYS_DIRECTORY = "src/main/resources/generated_keys";
 
     public WorldState() {
         this.accounts = new HashMap<>();
+        this.nameAddress = new HashMap<>();
     }
 
     public Map<String, AccountState> getAccounts() {
         return accounts;
     }
 
-    public AccountState getAccount(String address) {
+    public AccountState getAccount(String name) {
+        String address = nameAddress.get(name);
         return accounts.get(address);
     }
 
     public void addAccount(AccountState accountState) {
+        System.out.println("Adding account: " + accountState.getName() + " with address: " + accountState.getAddress());
+        nameAddress.put(accountState.getName(), accountState.getAddress());
         accounts.put(accountState.getAddress(), accountState);
     }
 
@@ -226,11 +232,83 @@ public class WorldState {
                 Map<String, String> storageCopy = new HashMap<>(original.getStorage());
                 cloned.setStorage(storageCopy);
             }
-    
+            System.out.println("Copy:");
             copy.addAccount(cloned);
         }
     
         return copy;
     }
 
+        private boolean isTransactionValid(Transaction tx, WorldState state) {
+        // Aqui deves verificar:
+        // - Assinatura válida
+        // - Sender existe
+        // - Saldo suficiente
+        // - Nonce correto (se usares nonce)
+        
+        AccountState sender = state.getAccount(tx.getSender().toString());
+        AccountState receiver = state.getAccount(tx.getReceiver().toString());
+        System.out.println("Sender: " + sender + ", Receiver: " + receiver);
+    
+        if (sender == null || receiver == null) {System.out.println("Sender or receiver null"); return false;}
+    
+        try {
+            double balance = new java.math.BigDecimal(sender.getBalance()).doubleValue();
+            return balance >= tx.getAmount(); // saldo suficiente
+        } catch (Exception e) {
+            System.out.println("Error checking balance: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    private void applyTransaction(Transaction tx, WorldState state) {
+        AccountState sender = state.getAccount(tx.getSender().toString());
+        AccountState receiver = state.getAccount(tx.getReceiver().toString());
+    
+        if (sender == null || receiver == null) return;
+    
+        java.math.BigDecimal value = java.math.BigDecimal.valueOf(tx.getAmount());
+        java.math.BigDecimal senderBalance = new java.math.BigDecimal(sender.getBalance());
+        java.math.BigDecimal receiverBalance = new java.math.BigDecimal(receiver.getBalance());
+    
+        sender.setBalance(senderBalance.subtract(value).toString());
+        receiver.setBalance(receiverBalance.add(value).toString());
+    } 
+    
+    public boolean areAllTransactionsValid(Block block) {
+        System.out.println("Verifying transactions in block");
+        WorldState copyWorldState = WorldState.deepCopy(this); // cópia profunda do estado atual da worldstate
+    
+        for (Transaction tx : block.getTransactions()) {
+            if (!isTransactionValid(tx, copyWorldState)) {
+                return false;
+            }
+            applyTransaction(tx, copyWorldState); // aplica a transação à cópia para atualizar o estado
+        }
+
+        System.out.println("All transactions are valid :)");
+        return true;
+    }
+
+    public void applyBlock(Block block) {
+        for (Transaction tx : block.getTransactions()) {
+                applyTransaction(tx, this);
+        }
+    }
+
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("WorldState:\n");
+        
+        // Sort accounts by name for a consistent display
+        accounts.values().stream()
+            .sorted((a1, a2) -> a1.getName().compareTo(a2.getName()))
+            .forEach(account -> {
+                sb.append("  ").append(account.getName())
+                  .append(": ").append(account.getBalance())
+                  .append("\n");
+            });
+            
+        return sb.toString();
+    }
 }
