@@ -15,11 +15,17 @@
 #### Client
 - Criar "See Balance": 
     - No client.java & clientLibrary.java
+- Optional flex: fazer getTransactions(client) q retorna todas as transacoes onde client esteve envolvido
 
 #### Leader
-- Fazer o consenso sobre o bloco (semi feito)
-- Atualizar o world state
+- ~~Fazer o consenso sobre o bloco~~
+- ~~Atualizar o world state~~
 - Verificar Signature
+- quando recebe um "See Balance" do cliente, pede worldstate a todos, quando receber quorum, devolve ao cliente
+
+- testes
+- smart contracts
+- report 
 
 ### Passos de Implementação
 
