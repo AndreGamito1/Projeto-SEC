@@ -191,6 +191,10 @@ public class ByzantineEpochConsensus {
         // Return the consensus balance if it meets the quorum threshold
         if (maxCount >= memberManager.getQuorumSize()) {
             System.out.println("Consensus reached on balance: " + consensusBalance);
+            maxCount = 0; // Reset maxCount for next round
+            balancesColletected = false; // Reset the flag for the next round
+            balanceList.clear(); // Clear the balance list for the next round
+            
             return consensusBalance;
         } else {
             return null; // No consensus reached
