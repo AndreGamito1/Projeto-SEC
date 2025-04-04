@@ -2,6 +2,7 @@ package com.depchain.consensus;
 
 import com.depchain.utils.*;
 
+import java.io.IOException;
 import java.util.List;
 
 import com.depchain.blockchain.Block;
@@ -117,5 +118,10 @@ public class MemberRole implements Role {
     @Override
     public void handleDecideMessage(Message message) {
         Logger.log(Logger.MEMBER, "Received DECIDE message");
+    }
+
+    @Override
+    public void saveBlock(Block block){
+
     }
 }

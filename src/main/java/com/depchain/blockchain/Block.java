@@ -6,9 +6,20 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Map;
 
 /**
  * Represents a block in the blockchain.
@@ -32,7 +43,13 @@ public class Block implements Serializable {
     public Block(String previousHash, List<Transaction> transactions) {
         this.previousHash = previousHash;
         this.transactions = transactions != null ? transactions : new ArrayList<>();
-        this.hash = calculateHash(); // Initial hash calculation
+        this.hash = calculateHash(previousHash); // Initial hash calculation
+    }
+
+    public Block(String previousHash, List<Transaction> transactions, String hash) {
+        this.hash = hash;
+        this.previousHash = previousHash;
+        this.transactions = transactions != null ? transactions : new ArrayList<>();
     }
     
     /**
@@ -47,13 +64,24 @@ public class Block implements Serializable {
      * 
      * @return A hash string representing this block's contents
      */
-    public String calculateHash() {
-        // This is a placeholder - implement your actual hashing algorithm
-        String dataToHash = transactions.toString();
+    public static String calculateHash(String previousHash) {
+        String dataToHash = previousHash + System.currentTimeMillis();
         
-        // Use a proper hashing algorithm in production (SHA-256, etc.)
-        // For example: return DigestUtils.sha256Hex(dataToHash);
-        return "hash_of_" + dataToHash.hashCode();
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = digest.digest(dataToHash.getBytes(StandardCharsets.UTF_8));
+            
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hashBytes) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
     }
     
     /**
@@ -201,5 +229,65 @@ public class Block implements Serializable {
                ", transactions=" + transactions.size() +
                ", hash='" + hash + '\'' +
                '}';
+    }
+
+    /**
+     * Saves the block as a JSON file in the specified directory
+     * 
+     * @param block The block to save
+     * @throws IOException If file writing fails
+     */ 
+    public static void saveBlockAsJson(Block block, WorldState worldState) throws IOException {
+        File dir = new File("src/main/resources/blocks");
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+    
+        int blockNumber = 1;
+        File[] files = dir.listFiles((d, name) -> name.matches("block\\d+\\.json"));
+        if (files != null) {
+            blockNumber = files.length + 1;
+        }
+    
+        File blockFile = new File(dir, "block" + blockNumber + ".json");
+    
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode root = mapper.createObjectNode();
+        
+        root.put("block_hash", block.getHash());
+        root.put("previous_block_hash", block.getPreviousHash());
+    
+        ArrayNode transactionsNode = root.putArray("transactions");
+        for (Transaction tx : block.getTransactions()) {
+            ObjectNode txNode = transactionsNode.addObject();
+            txNode.put("sender", tx.getSender());
+            txNode.put("receiver", tx.getReceiver());
+            txNode.put("amount", tx.getAmount());
+            txNode.put("data", tx.getData());
+            txNode.put("signature", tx.getSignature());
+        }
+
+        ObjectNode stateNode = root.putObject("state");
+        for (Map.Entry<String, AccountState> entry : worldState.getAccounts().entrySet()) {
+            String address = entry.getKey();
+            AccountState account = entry.getValue();
+            ObjectNode accNode = stateNode.putObject(address);
+
+            accNode.put("balance", account.getBalance());
+
+            if (account.isContract()) {
+                accNode.put("code", account.getCode());
+                ObjectNode storageNode = accNode.putObject("storage");
+
+                if (account.getStorage() != null) {
+                    for (Map.Entry<String, String> storageEntry : account.getStorage().entrySet()) {
+                        storageNode.put(storageEntry.getKey(), storageEntry.getValue());
+                    }
+                }
+            }
+        }
+
+    
+        mapper.writerWithDefaultPrettyPrinter().writeValue(blockFile, root);
     }
 }

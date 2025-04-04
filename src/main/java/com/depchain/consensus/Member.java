@@ -2,13 +2,17 @@ package com.depchain.consensus;
 
 import java.util.List;
 import java.util.Map;
+import java.io.File;
 import java.io.IOException;
 import java.security.PublicKey;
 import java.util.ArrayList;
 import javax.crypto.SecretKey;
+import java.util.Iterator;
 
 import com.depchain.networking.*;
 import com.depchain.utils.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.depchain.blockchain.*;
 public class Member {
     private Role currentRole;
@@ -89,13 +93,27 @@ public class Member {
         start();
     }
 
-    private Block createGenesisBlockObject() {
-        String previousHash = "0"; // No previous hash for the genesis block
-        List<Transaction> transactions = new ArrayList<>(); // No transactions in the genesis block
-
-        return new Block(previousHash, transactions);
+    public Block createGenesisBlockObject() {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            File file = new File(GENESIS_BLOCK_RESOURCE_NAME);
+    
+            JsonNode root = mapper.readTree(file);
+    
+            String blockHash = root.get("block_hash").asText();
+            String previousHash = root.get("previous_block_hash").isNull()
+                    ? "0".repeat(64)
+                    : root.get("previous_block_hash").asText();
+    
+            List<Transaction> transactions = new ArrayList<>(); // Genesis block não tem txs
+    
+            return new Block(previousHash, transactions, blockHash); 
+    
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
-
 
     public void waitForMessages() {
         try {
@@ -184,6 +202,7 @@ public class Member {
             block = Block.deserializeFromBase64(serializedBlock);
             blockchain.add(block);
             this.worldState.applyBlock(block);
+            saveBlock(block);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -236,6 +255,15 @@ public class Member {
     }
 
     public String getPreviousHash() {
+        System.out.println("#############Blockchain size: " + blockchain.size());
         return blockchain.get(blockchain.size() - 1).getHash();
+    }
+
+    public void saveBlock(Block block){
+        try{
+            currentRole.saveBlock(block);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }   
     }
 }

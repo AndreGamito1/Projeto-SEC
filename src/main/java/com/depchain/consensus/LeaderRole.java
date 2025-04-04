@@ -371,4 +371,13 @@ public class LeaderRole implements Role {
             blockTimer.cancel();
         }
     }
+
+    @Override
+    public void saveBlock(Block block){
+        try{
+            Block.saveBlockAsJson(block, member.getWorldState());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }

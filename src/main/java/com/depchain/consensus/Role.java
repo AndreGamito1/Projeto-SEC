@@ -19,4 +19,5 @@ public interface Role {
     void handleAckMessage(Message message) throws Exception;
     void handleDecideMessage(Message message) throws Exception;
     void handleAbortMessage(Message message) throws Exception;
+    void saveBlock(Block block) throws Exception;
 }

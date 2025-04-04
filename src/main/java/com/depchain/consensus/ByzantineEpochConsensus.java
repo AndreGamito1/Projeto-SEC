@@ -1,10 +1,12 @@
 package com.depchain.consensus;
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.depchain.blockchain.Block;
 import com.depchain.blockchain.WorldState;
 import com.depchain.networking.AuthenticatedMessage;
 import com.depchain.networking.Message;
