@@ -19,6 +19,21 @@ public class Message implements Serializable {
         this.messageID = UUID.randomUUID().toString();
         this.sourceId = sourceId;
     }
+    
+    public boolean hasCommand() {
+        return command != null && !command.isEmpty();
+    }
+    
+    @Override
+    public String toString() {
+        if (command == null || command.isEmpty()) {
+            return "Message[payload=" + payload + ", messageID=" + messageID + "]";
+        } else {
+            return "Message[payload=" + payload + ", command=" + command + ", messageID=" + messageID + "]";
+        }
+    }
+
+    //--- Getters and Setters ---
 
     public String getSourceId() {
         return sourceId;
@@ -46,18 +61,5 @@ public class Message implements Serializable {
 
     public String getMessageID() {
         return messageID;
-    }
-    
-    public boolean hasCommand() {
-        return command != null && !command.isEmpty();
-    }
-    
-    @Override
-    public String toString() {
-        if (command == null || command.isEmpty()) {
-            return "Message[payload=" + payload + ", messageID=" + messageID + "]";
-        } else {
-            return "Message[payload=" + payload + ", command=" + command + ", messageID=" + messageID + "]";
-        }
     }
 }

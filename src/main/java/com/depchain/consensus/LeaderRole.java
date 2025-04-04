@@ -350,14 +350,6 @@ public class LeaderRole implements Role {
 
     // Helper methods for testing/debugging
     
-    public synchronized int getTransactionPoolSize() {
-        return transactionPool.size();
-    }
-    
-    public int getQueueSize() {
-        return blockQueue.size();
-    }
-    
     public boolean isTimerRunning() {
         return timerRunning;
     }
@@ -379,5 +371,15 @@ public class LeaderRole implements Role {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    //--- Getters and Setters ---
+
+    public synchronized int getTransactionPoolSize() {
+        return transactionPool.size();
+    }
+    
+    public int getQueueSize() {
+        return blockQueue.size();
     }
 }

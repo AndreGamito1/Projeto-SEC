@@ -156,21 +156,6 @@ public class Member {
         }
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public WorldState getWorldState() {
-        return worldState;
-    }
-
-    public MemberManager getMemberManager() {
-        return memberManager;
-    }
-    public ByzantineEpochConsensus getConsensus() {
-        return epochConsensus;
-    }
-
     public void processMessage(String sourceId, AuthenticatedMessage message) throws Exception {
         currentRole.processMessage(sourceId, message);
     }
@@ -219,17 +204,6 @@ public class Member {
     public void handleAbortMessage(AuthenticatedMessage message) throws Exception {
         currentRole.handleAbortMessage(message);
     }   
-
-    public List<Block> getBlockchain() {
-        return blockchain;
-    }
-    public List<Message> getQuorumDecideMessages() {
-        return quorumDecideMessages;
-    }
-    
-    public List<Message> getQuorumAbortMessages() {
-        return quorumAbortMessages;
-    }
     
     public void startConsensus() {
         // If blockchain is empty, pass null or create an initial state
@@ -249,6 +223,30 @@ public class Member {
         return working;
     }
 
+    public void saveBlock(Block block){
+        try{
+            currentRole.saveBlock(block);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }   
+    }
+
+    //--- Getters and Setters ---
+
+    public String getName() {
+        return name;
+    }
+
+    public WorldState getWorldState() {
+        return worldState;
+    }
+
+    public MemberManager getMemberManager() {
+        return memberManager;
+    }
+    public ByzantineEpochConsensus getConsensus() {
+        return epochConsensus;
+    }
 
     public int getQuorumSize() {
         return memberManager.getQuorumSize();
@@ -259,11 +257,14 @@ public class Member {
         return blockchain.get(blockchain.size() - 1).getHash();
     }
 
-    public void saveBlock(Block block){
-        try{
-            currentRole.saveBlock(block);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }   
+    public List<Block> getBlockchain() {
+        return blockchain;
+    }
+    public List<Message> getQuorumDecideMessages() {
+        return quorumDecideMessages;
+    }
+    
+    public List<Message> getQuorumAbortMessages() {
+        return quorumAbortMessages;
     }
 }

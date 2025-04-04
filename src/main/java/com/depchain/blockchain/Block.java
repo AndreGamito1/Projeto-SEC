@@ -196,32 +196,7 @@ public class Block implements Serializable {
         return true;
     }
     
-    // Getters and setters
-    
-    
-    public String getPreviousHash() {
-        return previousHash;
-    }
-    
-    public void setPreviousHash(String previousHash) {
-        this.previousHash = previousHash;
-    }
-    
-    public List<Transaction> getTransactions() {
-        return transactions;
-    }
-    
-    public void setTransactions(List<Transaction> transactions) {
-        this.transactions = transactions;
-    }
-    
-    public String getHash() {
-        return hash;
-    }
-    
-    public void setHash(String hash) {
-        this.hash = hash;
-    }
+
     @Override
     public String toString() {
         return "Block{" +
@@ -289,5 +264,31 @@ public class Block implements Serializable {
 
     
         mapper.writerWithDefaultPrettyPrinter().writeValue(blockFile, root);
+    }
+
+    // Getters and setters
+    
+    public String getPreviousHash() {
+        return previousHash;
+    }
+    
+    public void setPreviousHash(String previousHash) {
+        this.previousHash = previousHash;
+    }
+    
+    public List<Transaction> getTransactions() {
+        return transactions;
+    }
+    
+    public void setTransactions(List<Transaction> transactions) {
+        this.transactions = transactions;
+    }
+    
+    public String getHash() {
+        return hash;
+    }
+    
+    public void setHash(String hash) {
+        this.hash = hash;
     }
 }

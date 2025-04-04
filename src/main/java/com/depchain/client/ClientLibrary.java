@@ -463,23 +463,6 @@ public class ClientLibrary {
         memberManager.sendToMember(memberManager.getLeaderName(), payload, command);
     }
 
-    /**
-     * Gets the port used by this client library instance.
-     * 
-     * @return The port number
-     */
-    public int getPort() {
-        return port;
-    }
-
-    /**
-     * Gets the HTTP port used by the REST API.
-     * 
-     * @return The HTTP port number
-     */
-    public int getHttpPort() {
-        return httpPort;
-    }
 
     /**
      * Main method to start a ClientLibrary instance with command-line parameters.
@@ -516,5 +499,25 @@ public class ClientLibrary {
             System.err.println("Failed to start ClientLibrary: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    //--- Getters and Setters ---
+
+    /**
+     * Gets the port used by this client library instance.
+     * 
+     * @return The port number
+     */
+    public int getPort() {
+        return port;
+    }
+
+    /**
+     * Gets the HTTP port used by the REST API.
+     * 
+     * @return The HTTP port number
+     */
+    public int getHttpPort() {
+        return httpPort;
     }
 }

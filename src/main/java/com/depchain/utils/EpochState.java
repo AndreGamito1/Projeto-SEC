@@ -15,6 +15,8 @@ public class EpochState {
         this.writeSet = writeSet;
     }
     
+    //--- Getters and Setters ---
+
     public long getTimestamp() {
         return timestamp;
     }

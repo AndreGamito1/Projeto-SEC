@@ -47,14 +47,6 @@ public class ByzantineEpochConsensus {
         Logger.log(Logger.MEMBER, "Byzantine Epoch Consensus running!");
     }
     
-    public void setState(EpochState state) {
-        epochState = state;
-    }
-
-    public EpochState getState() {
-        return epochState;
-    }
-
     public void appendToWriteset(EpochState state) {
         writeset.add(state);
     }
@@ -107,13 +99,6 @@ public class ByzantineEpochConsensus {
         conditionalCollect = null; // reset the conditional collect
         System.out.println("---------------------- ABORTED COND COLLECT ----------------------");
     }
-
-    public void setWorldState(WorldState worldState) {
-        this.worldState = worldState;
-    }
-    public WorldState getWorldState() {
-        return worldState;
-    }
     
     public void addToBalanceList(String balance) {
         this.balanceList.add(balance);
@@ -122,25 +107,8 @@ public class ByzantineEpochConsensus {
         }
     }
 
-    public List<String> getBalanceList() {
-        return balanceList;
-    }
-
     public void clearBalanceList() {
         this.balanceList.clear();
-    }
-
-    
-    public void getBalanceConsensus(String senderId) {
-        try {
-            for (String member : memberManager.getMemberLinks().keySet()) {
-                memberManager.sendToMember(member, senderId, "GET_BALANCE");
-            }
-            waitForBalances(senderId);
-        } catch (Exception e) {
-            System.out.println("Error getting world state consensus: " + e.getMessage());
-            return;
-        }
     }
 
     public void waitForBalances(String senderId){
@@ -201,4 +169,36 @@ public class ByzantineEpochConsensus {
         }
     }
 
+    //--- Getters and Setters ---
+
+    public void getBalanceConsensus(String senderId) {
+        try {
+            for (String member : memberManager.getMemberLinks().keySet()) {
+                memberManager.sendToMember(member, senderId, "GET_BALANCE");
+            }
+            waitForBalances(senderId);
+        } catch (Exception e) {
+            System.out.println("Error getting world state consensus: " + e.getMessage());
+            return;
+        }
+    }
+
+    public List<String> getBalanceList() {
+        return balanceList;
+    }
+
+    public void setWorldState(WorldState worldState) {
+        this.worldState = worldState;
+    }
+    public WorldState getWorldState() {
+        return worldState;
+    }
+
+    public void setState(EpochState state) {
+        epochState = state;
+    }
+
+    public EpochState getState() {
+        return epochState;
+    }
 }

@@ -31,31 +31,6 @@ public class WorldState {
         this.nameAddress = new HashMap<>();
     }
 
-    public Map<String, AccountState> getAccounts() {
-        return accounts;
-    }
-
-    public AccountState getAccount(String name) {
-        String address = nameAddress.get(name);
-        return accounts.get(address);
-    }
-
-    /**
-     * Gets the balance of a client by their name.
-     * 
-     * @param clientName The name of the client whose balance to retrieve
-     * @return The balance as a String, or null if the client doesn't exist
-     */
-    public String getBalance(String clientName) {
-        System.out.println("Getting balance for client: " + clientName);
-        AccountState account = getAccount(clientName);
-        if (account == null) {
-            System.out.println("Account not found for client: " + clientName);
-            return null;
-        }
-        return account.getBalance();
-    }
-
     public void addAccount(AccountState accountState) {
         System.out.println("Adding account: " + accountState.getName() + " with address: " + accountState.getAddress());
         nameAddress.put(accountState.getName(), accountState.getAddress());
@@ -327,4 +302,32 @@ public class WorldState {
             
         return sb.toString();
     }
+
+    //--- Getters and Setters ---
+
+    public Map<String, AccountState> getAccounts() {
+        return accounts;
+    }
+
+    public AccountState getAccount(String name) {
+        String address = nameAddress.get(name);
+        return accounts.get(address);
+    }
+
+    /**
+     * Gets the balance of a client by their name.
+     * 
+     * @param clientName The name of the client whose balance to retrieve
+     * @return The balance as a String, or null if the client doesn't exist
+     */
+    public String getBalance(String clientName) {
+        System.out.println("Getting balance for client: " + clientName);
+        AccountState account = getAccount(clientName);
+        if (account == null) {
+            System.out.println("Account not found for client: " + clientName);
+            return null;
+        }
+        return account.getBalance();
+    }
+
 }

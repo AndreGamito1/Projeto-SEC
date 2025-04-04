@@ -35,28 +35,65 @@ public class AccountState {
         this.storage = new HashMap<>(); // Initialize storage map
     }
 
-     /**
-      * Copy constructor for deep copying AccountState.
-      * @param other The AccountState to copy.
-      */
-     public AccountState(AccountState other) {
-         Objects.requireNonNull(other, "Cannot copy null AccountState");
-         this.address = other.address; // Strings are immutable
-         this.publicKeyPath = other.publicKeyPath; // Strings are immutable
-         this.privateKeyPath = other.privateKeyPath; // Strings are immutable
-         this.balance = other.balance; // Strings are immutable
-         this.code = other.code; // Strings are immutable
-         this.name = other.name; // Strings are immutable
-         // Deep copy the storage map
-         if (other.storage != null) {
-             this.storage = new HashMap<>(other.storage);
-         } else {
-             this.storage = new HashMap<>(); // Initialize if source was null
-         }
+    /**
+     * Copy constructor for deep copying AccountState.
+    * @param other The AccountState to copy.
+    */
+    public AccountState(AccountState other) {
+        Objects.requireNonNull(other, "Cannot copy null AccountState");
+        this.address = other.address; // Strings are immutable
+        this.publicKeyPath = other.publicKeyPath; // Strings are immutable
+        this.privateKeyPath = other.privateKeyPath; // Strings are immutable
+        this.balance = other.balance; // Strings are immutable
+        this.code = other.code; // Strings are immutable
+        this.name = other.name; // Strings are immutable
+        // Deep copy the storage map
+        if (other.storage != null) {
+            this.storage = new HashMap<>(other.storage);
+        } else {
+            this.storage = new HashMap<>(); // Initialize if source was null
+        }
+    }
+
+    public boolean isContract() {
+        return code != null && !code.isEmpty();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("AccountState{")
+          .append("address='").append(address).append('\'')
+          .append(", balance='").append(balance).append('\'');
+
+        if (isContract()) {
+            sb.append(", isContract=true")
+              // Limit storage output size if it can be very large
+              .append(", storage=").append(storage.size() > 10 ? storage.size() + " items" : storage);
+        }
+
+        sb.append('}');
+        return sb.toString();
+    }
+
+     // Optional: Implement equals() and hashCode() if AccountState objects
+     // are stored in sets or used as keys in maps directly.
+     // Be careful with mutable fields (balance, storage) in hashCode/equals.
+     // Often, only the immutable 'address' is used for equality checks.
+     @Override
+     public boolean equals(Object o) {
+         if (this == o) return true;
+         if (o == null || getClass() != o.getClass()) return false;
+         AccountState that = (AccountState) o;
+         return Objects.equals(address, that.address); // Equality based on address only
      }
 
+     @Override
+     public int hashCode() {
+         return Objects.hash(address); // Hash code based on address only
+     }
 
-    // --- Getters ---
+     // --- Getters ---
 
     public String getAddress() {
         return address;
@@ -89,10 +126,6 @@ public class AccountState {
          }
     }
 
-    public boolean isContract() {
-        return code != null && !code.isEmpty();
-    }
-
     public String getCode() {
         return code;
     }
@@ -108,7 +141,7 @@ public class AccountState {
         return storage.get(key);
     }
 
-
+    
     // --- Setters ---
 
     public void setBalance(String balance) {
@@ -145,37 +178,4 @@ public class AccountState {
          }
     }
 
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("AccountState{")
-          .append("address='").append(address).append('\'')
-          .append(", balance='").append(balance).append('\'');
-
-        if (isContract()) {
-            sb.append(", isContract=true")
-              // Limit storage output size if it can be very large
-              .append(", storage=").append(storage.size() > 10 ? storage.size() + " items" : storage);
-        }
-
-        sb.append('}');
-        return sb.toString();
-    }
-
-     // Optional: Implement equals() and hashCode() if AccountState objects
-     // are stored in sets or used as keys in maps directly.
-     // Be careful with mutable fields (balance, storage) in hashCode/equals.
-     // Often, only the immutable 'address' is used for equality checks.
-     @Override
-     public boolean equals(Object o) {
-         if (this == o) return true;
-         if (o == null || getClass() != o.getClass()) return false;
-         AccountState that = (AccountState) o;
-         return Objects.equals(address, that.address); // Equality based on address only
-     }
-
-     @Override
-     public int hashCode() {
-         return Objects.hash(address); // Hash code based on address only
-     }
 }

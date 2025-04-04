@@ -41,7 +41,18 @@ public class AuthenticatedMessage extends Message {
         String idBase = getPayload() + getCommand() + System.currentTimeMillis();
         return String.valueOf(idBase.hashCode());
     }
-    
+        
+    @Override
+    public String toString() {
+        return super.toString() + ", authString=" + authString + ", messageID=" + messageID;
+    }
+
+    public String getAesKey() {
+        return super.getAesKey();
+    }
+
+    //--- Getters and Setters ---
+
     /**
      * Gets the authentication string.
      * 
@@ -81,13 +92,5 @@ public class AuthenticatedMessage extends Message {
     public void setMessageID(String messageID) {
         this.messageID = messageID;
     }
-    
-    @Override
-    public String toString() {
-        return super.toString() + ", authString=" + authString + ", messageID=" + messageID;
-    }
 
-    public String getAesKey() {
-        return super.getAesKey();
-    }
 }

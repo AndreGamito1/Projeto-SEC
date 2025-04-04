@@ -10,6 +10,13 @@ class EpochState {
         this.value = value;
     }
 
+    @Override
+    public String toString() {
+        return timeStamp + ", " + value;
+    }
+
+    //--- Getters and Setters ---
+
     public int getTimeStamp() {
         return timeStamp;
     }
@@ -24,11 +31,6 @@ class EpochState {
 
     public void setValue(String value) {
         this.value = value;
-    }
-
-    @Override
-    public String toString() {
-        return timeStamp + ", " + value;
     }
 }
 

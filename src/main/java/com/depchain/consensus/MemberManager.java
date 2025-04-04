@@ -35,32 +35,9 @@ public class MemberManager {
         }
     }
 
-    public Map<String, AuthenticatedPerfectLinks> getMemberLinks() {
-        return memberLinks;
-    }
-
-    public String getLeaderName() {
-        return leaderName;
-    }
-
-    public String getName() {
-        return name;
-    }
-
     public boolean isLeader() {
         return name.equals(leaderName);
     }
-
-    public Map<String, Integer> getMemberPorts() {
-        return memberPorts;
-    }
-
-
-    public int getClientLibraryPort() {
-        return clientLibraryPort;
-    }
-
-
 
     public void setupClientLibraryLink(int currentLocalPort) throws Exception {
         if (keyManager.getClientLibraryPublicKey() == null) {
@@ -163,11 +140,6 @@ public class MemberManager {
         }
     }
 
-    public int getQuorumSize(){ 
-       int quorumSize = (members.size() / 2) + 1;
-       return quorumSize;
-    }
-
     private List<String> JsonToList() {
         List<String> nodes = new ArrayList<>();
         try {
@@ -189,6 +161,31 @@ public class MemberManager {
         return nodes;
     }
 
+    //--- Getters and Setters ---
 
-  
+    public int getQuorumSize(){ 
+        int quorumSize = (members.size() / 2) + 1;
+        return quorumSize;
+    }
+
+    public Map<String, Integer> getMemberPorts() {
+        return memberPorts;
+    }
+
+
+    public int getClientLibraryPort() {
+        return clientLibraryPort;
+    }
+    
+    public Map<String, AuthenticatedPerfectLinks> getMemberLinks() {
+        return memberLinks;
+    }
+
+    public String getLeaderName() {
+        return leaderName;
+    }
+
+    public String getName() {
+        return name;
+    }
 }

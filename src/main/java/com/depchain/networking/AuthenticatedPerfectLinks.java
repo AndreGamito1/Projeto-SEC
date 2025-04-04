@@ -188,24 +188,6 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
     }
   
     /**
-     * Gets the size of the received message queue.
-     * 
-     * @return The number of received messages
-     */
-    public int getReceivedSize() {
-        return received.size();
-    }
-    
-    /**
-     * Gets the list of received messages.
-     * 
-     * @return The list of authenticated messages
-     */
-    public List<AuthenticatedMessage> getReceivedMessages() {
-        return received;
-    }
-    
-    /**
      * Called when a message is received from the stubborn link.
      * 
      * @param authMessage The authenticated message
@@ -228,4 +210,25 @@ public class AuthenticatedPerfectLinks implements MessageCallback {
     public String getDestinationEntity() {
         return destinationEntity;
     }
+
+    //--- Getters and Setters ---
+
+    /**
+     * Gets the size of the received message queue.
+     * 
+     * @return The number of received messages
+     */
+    public int getReceivedSize() {
+        return received.size();
+    }
+    
+    /**
+     * Gets the list of received messages.
+     * 
+     * @return The list of authenticated messages
+     */
+    public List<AuthenticatedMessage> getReceivedMessages() {
+        return received;
+    }
+    
 }

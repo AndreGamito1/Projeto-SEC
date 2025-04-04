@@ -144,23 +144,6 @@ public class Client {
         }
     }
 
-    /**
-     * Gets the client's unique identifier.
-     * 
-     * @return The client ID
-     */
-    public String getClientId() {
-        return clientId;
-    }
-
-    /**
-     * Gets the client's port.
-     * 
-     * @return The port number
-     */
-    public int getPort() {
-        return clientPort;
-    }
     
 /**
      * Sends the sender name, receiver name, and amount as JSON to the server.
@@ -372,6 +355,26 @@ public class Client {
             System.err.println("Error: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    //--- Getters and Setters ---
+
+    /**
+     * Gets the client's unique identifier.
+     * 
+     * @return The client ID
+     */
+    public String getClientId() {
+        return clientId;
+    }
+
+    /**
+     * Gets the client's port.
+     * 
+     * @return The port number
+     */
+    public int getPort() {
+        return clientPort;
     }
     
 }

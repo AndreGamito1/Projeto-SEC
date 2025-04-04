@@ -54,6 +54,8 @@ public class ClientManager {
         }
     }
 
+    //--- Getters and Setters ---
+
     public static PublicKey getPublicKey(String name) {
         return publicKeys.get(name);
     }

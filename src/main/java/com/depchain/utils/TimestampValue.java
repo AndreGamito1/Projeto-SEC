@@ -12,6 +12,8 @@ public class TimestampValue {
         this.value = value;
     }
     
+    //--- Getters and Setters ---
+    
     public long getTimestamp() {
         return timestamp;
     }

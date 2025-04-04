@@ -380,7 +380,7 @@ public class KeyManager {
         // Extract content between markers and remove all whitespace
         return pemContent.substring(beginIndex, endIndex).replaceAll("\\s", "");
     }
-
+    
     /**
      * Gets the public key for an entity.
      * 

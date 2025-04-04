@@ -46,16 +46,7 @@ public class Transaction implements Serializable {
      */
     public Transaction() {
     }
-    
-    /**
-     * Signs this transaction with the provided signature
-     * 
-     * @param signature The digital signature for this transaction
-     */
-    public void setSignature(String signature) {
-        this.signature = signature;
-    }
-    
+        
     /**
      * Calculates a hash of this transaction's data
      * 
@@ -122,23 +113,6 @@ public class Transaction implements Serializable {
         } 
     }
 
-
-    /**
-     * Calculates a hash of this transaction's data to be signed
-     */
-    private String getDataToSign() {
-        String data = sender + receiver + Double.toString(amount);
-        try {
-            // Create a message digest using SHA-256
-            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(data.getBytes("UTF-8"));
-            return Base64.getEncoder().encodeToString(digest);
-        } catch (Exception e) {
-            System.err.println("Error creating hash: " + e.getMessage());
-            return "";
-        }
-    }
-
     /**
      * Signs this transaction with the sender's private key
      */
@@ -183,8 +157,17 @@ public class Transaction implements Serializable {
             return false;
         }
     }
+    
+    @Override
+    public String toString() {
+        return "Transaction{" +
+               "sender='" + sender + '\'' +
+               ", receiver='" + receiver + '\'' +
+               ", amount=" + amount +
+               '}';
+    }
 
-    // Getters and setters
+    //--- Getters and Setters ---
     
     public String getSender() {
         return sender;
@@ -221,13 +204,29 @@ public class Transaction implements Serializable {
     public String getSignature() {
         return signature;
     }
-    
-    @Override
-    public String toString() {
-        return "Transaction{" +
-               "sender='" + sender + '\'' +
-               ", receiver='" + receiver + '\'' +
-               ", amount=" + amount +
-               '}';
+
+    /**
+     * Calculates a hash of this transaction's data to be signed
+     */
+    private String getDataToSign() {
+        String data = sender + receiver + Double.toString(amount);
+        try {
+            // Create a message digest using SHA-256
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(data.getBytes("UTF-8"));
+            return Base64.getEncoder().encodeToString(digest);
+        } catch (Exception e) {
+            System.err.println("Error creating hash: " + e.getMessage());
+            return "";
+        }
+    }
+
+    /**
+     * Signs this transaction with the provided signature
+     * 
+     * @param signature The digital signature for this transaction
+     */
+    public void setSignature(String signature) {
+        this.signature = signature;
     }
 }
