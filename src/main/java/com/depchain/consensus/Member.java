@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.Map;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.PublicKey;
 import java.util.ArrayList;
 import javax.crypto.SecretKey;
@@ -128,14 +131,13 @@ public class Member {
             }
 
 
-            // --- Optional: Initialize the blockchain list with the Genesis Block ---
             Block genesisBlock = createGenesisBlockObject();
             if (genesisBlock != null) {
                 this.blockchain.add(genesisBlock);
             }
 
             this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, worldState, behavior);
-
+            recoverWorldState();
             System.out.println("Blockchain state: " + this.blockchain);
 
         } catch (IOException e) {
@@ -152,6 +154,60 @@ public class Member {
 
         start();
     }
+
+    private void recoverWorldState() {
+        try {
+            Path blocksDirectory = Paths.get("src/main/resources/blocks");
+            ObjectMapper mapper = new ObjectMapper();
+    
+            // Iterate over all JSON files in the directory in sorted order
+            Files.list(blocksDirectory)
+                .filter(path -> path.toString().endsWith(".json")) // Filter JSON files
+                .sorted() // Ensure blocks are processed in order
+                .forEach(path -> {
+                    try {
+                        // Parse the JSON file into a Block object
+                        JsonNode root = mapper.readTree(path.toFile());
+                        String blockHash = root.get("block_hash").asText();
+                        String previousHash = root.get("previous_block_hash").isNull()
+                                ? "0".repeat(64)
+                                : root.get("previous_block_hash").asText();
+    
+                        // Parse transactions
+                        List<Transaction> transactions = new ArrayList<>();
+                        JsonNode transactionsNode = root.get("transactions");
+                        if (transactionsNode != null && transactionsNode.isArray()) {
+                            for (JsonNode txNode : transactionsNode) {
+                                Transaction transaction = new Transaction(
+                                    txNode.get("sender").asText(),
+                                    txNode.get("receiver").asText(),
+                                    txNode.get("amount").asDouble(),
+                                    txNode.get("data").asText(),
+                                    txNode.get("signature").asText()
+                                );
+                                transactions.add(transaction);
+                            }
+                        }
+    
+                        // Create a Block object
+                        Block block = new Block(previousHash, transactions, blockHash);
+    
+                        // Apply the block's transactions to the WorldState
+                        worldState.applyBlock(block);
+    
+                        // Add the block to the blockchain
+                        blockchain.add(block);
+                    } catch (Exception e) {
+                        System.err.println("Failed to process block from file: " + path + " - " + e.getMessage());
+                    }
+                });
+    
+            System.out.println("WorldState recovered: " + worldState);
+        } catch (IOException e) {
+            System.err.println("Failed to read blocks directory: " + e.getMessage());
+        }
+    }
+
     public Block createGenesisBlockObject() {
         try {
             ObjectMapper mapper = new ObjectMapper();
