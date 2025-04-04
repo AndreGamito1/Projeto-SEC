@@ -18,6 +18,7 @@ public class MemberManager {
     private List<String> members = new ArrayList<>();                             //Array containing the names of all the members
     private Map<String, Integer> memberPorts = new HashMap<>();                   //The port number for each member
     private Map<String, AuthenticatedPerfectLinks> memberLinks = new HashMap<>(); //The authenticated links to each member
+    private AuthenticatedPerfectLinks clientLibraryLink;                          //The authenticated link to the client library
 
     private String leaderName;
     private String name;                                                            //The name of the member
@@ -59,8 +60,22 @@ public class MemberManager {
         return clientLibraryPort;
     }
 
+
+
+    public void setupClientLibraryLink(int currentLocalPort) throws Exception {
+        if (keyManager.getClientLibraryPublicKey() == null) {
+            Logger.log(Logger.MEMBER, "No public key for client library found. Cannot set up link.");
+            return;
+        }
+        clientLibraryLink = new AuthenticatedPerfectLinks("localhost", clientLibraryPort, currentLocalPort, "clientLibrary", 
+        keyManager.getClientLibraryPublicKey(),
+        keyManager.getPrivateKey(this.name));
+    }
+
+
+
     public void setupMemberLinks() throws Exception {
-        members = JsonToList();
+        members = JsonToList(); // So vai ter os membros
         System.out.println("Members: " + members);
         int currentLocalPort = clientLibraryPort;
         // Set up links to each member
@@ -70,13 +85,38 @@ public class MemberManager {
 
         for (String member : members) {
             if (!member.equals(this.name)) {
-                    int remotePort = memberPorts.get(member);     
+                    int remotePort = memberPorts.get(member); 
                     Logger.log(Logger.MEMBER, "Setting up link to " + member + " on port " + remotePort + "from port " + currentLocalPort);
                     memberLinks.put(member, new AuthenticatedPerfectLinks("localhost", remotePort, currentLocalPort, member, 
                     keyManager.getPublicKey(member),
                     keyManager.getPrivateKey(this.name)));
                     currentLocalPort++;
             }
+        }
+
+        // Set up link to client library
+        if (!name.equals("clientLibrary")) {
+            setupClientLibraryLink(currentLocalPort);
+        }
+    }
+
+    /**
+     * Sends a message to the client library.
+     * 
+     * @param payload The message payload
+     * @param command The command to execute
+     * @throws Exception If sending fails
+     */
+    public void sendToClientLibrary(String payload, String command) {
+        try {
+            if (clientLibraryLink == null) {
+                Logger.log(Logger.MEMBER, "No link to client library");
+                return;
+            }
+            clientLibraryLink.sendMessage(payload, command, this.name);
+            Logger.log(Logger.MEMBER, "Sent message to client library: command=\"" + command + "\"");
+        } catch (Exception e) {
+            Logger.log(Logger.MEMBER, "Error sending message to client library: " + e.getMessage());
         }
     }
 

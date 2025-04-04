@@ -283,18 +283,24 @@ public class KeyManager {
                     PrivateKey privateKey = loadPrivateKeyFromFile(privateKeyPath);
                     clientLibraryPrivateKey = privateKey;
                 }
-                continue;
             }
-    
-            // Store the keys 
+
+            // Store the keys ~
             publicKeys.put(entity, publicKey);
             if (entity.equals(entityName)) {
                 PrivateKey privateKey = loadPrivateKeyFromFile(privateKeyPath);
                 privateKeys.put(entity, privateKey);
-            }
+            }   
+
         }
     }
 
+    public PublicKey getClientLibraryPublicKey() {
+        return clientLibraryPublicKey;
+    }
+    public PrivateKey getClientLibraryPrivateKey() {
+        return clientLibraryPrivateKey;
+    }
     /**
      * Loads a public key from a file. Supports both PEM and binary formats.
      * 

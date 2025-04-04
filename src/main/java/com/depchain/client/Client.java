@@ -253,7 +253,7 @@ public class Client {
             return false;
         }
     }
-    
+
     /**
      * Retrieves the current blockchain state.
      * 
@@ -273,7 +273,7 @@ public class Client {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + "/blockchain/get"))
                     .header("Signature", signature) // Adding signature to headers
-                    .header("Client-Id", clientId)  // Optionally add client ID
+                    .header("ClientName", clientId)  // Add client ID in header
                     .GET()
                     .build();
 
@@ -281,10 +281,11 @@ public class Client {
 
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 JSONObject jsonResponse = new JSONObject(response.body());
-                return jsonResponse.optString("blockchain", "No blockchain data received");
+                String balance = jsonResponse.optString("balance", "No balance data received");
+                return "Balance for " + clientId + ": " + balance;
             } else {
                 System.err.println("HTTP Error: " + response.statusCode() + " - " + response.body());
-                return "Error getting blockchain data";
+                return "Error getting balance data: " + response.body();
             }
         } catch (Exception e) {
             System.err.println("Connection error: " + e.getMessage());
@@ -292,33 +293,6 @@ public class Client {
         }
     }
 
-       
-    /**
-     * Main method to initialize and run a client.
-     * 
-     * @param args Command line arguments - first argument should be the client ID
-     */
-    public static void main(String[] args) {
-        if (args.length < 1) {
-            System.err.println("Error: Client ID must be provided as an argument");
-            System.exit(1);
-        }
-        
-        String clientId = args[0];
-        
-        try {
-            System.out.println("Initializing client: " + clientId);
-            
-            Client client = new Client(clientId);
-            
-            runClientInterface(client);
-            
-        } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-    
     /**
      * Runs the interactive client interface.
      * 
@@ -347,16 +321,16 @@ public class Client {
 
                         boolean success = client.appendToBlockchain(receiver, amount);
                         if (success) {
-                            System.out.println("Append sequest successfully send.");
+                            System.out.println("Append request successfully sent.");
                         } else {
                             System.out.println("Failed to send append request.");
                         }
                         break;
                         
                     case "2":
-                        System.out.println("Retrieving blockchain data...");
-                        String blockchain = client.checkBalance();
-
+                        System.out.println("Retrieving balance data...");
+                        String balanceResult = client.checkBalance();
+                        System.out.println(balanceResult);
                         break;
                         
                     case "0":
@@ -369,7 +343,35 @@ public class Client {
                 }
             } catch (Exception e) {
                 System.err.println("Error: " + e.getMessage());
+                e.printStackTrace();
             }
         }
     }
+       
+    /**
+     * Main method to initialize and run a client.
+     * 
+     * @param args Command line arguments - first argument should be the client ID
+     */
+    public static void main(String[] args) {
+        if (args.length < 1) {
+            System.err.println("Error: Client ID must be provided as an argument");
+            System.exit(1);
+        }
+        
+        String clientId = args[0];
+        
+        try {
+            System.out.println("Initializing client: " + clientId);
+            
+            Client client = new Client(clientId);
+            
+            runClientInterface(client);
+            
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
 }

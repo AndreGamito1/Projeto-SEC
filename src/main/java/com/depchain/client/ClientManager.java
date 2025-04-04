@@ -14,7 +14,7 @@ import java.util.Map;
 
 public class ClientManager {
 
-    private final Map<String, PublicKey> publicKeys = new HashMap<>();
+    private final static Map<String, PublicKey> publicKeys = new HashMap<>();
     private final Map<String, PrivateKey> privateKeys = new HashMap<>();
     private final Map<String, String> addresses = new HashMap<>();
 
@@ -54,7 +54,7 @@ public class ClientManager {
         }
     }
 
-    public PublicKey getPublicKey(String name) {
+    public static PublicKey getPublicKey(String name) {
         return publicKeys.get(name);
     }
 

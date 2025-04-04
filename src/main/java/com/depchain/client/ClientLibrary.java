@@ -41,6 +41,9 @@ public class ClientLibrary {
 
     protected MemberManager memberManager;
     private ClientManager clientManager;
+    private String lastReceivedBalance = null;
+    private boolean balanceReceived = false;
+    private final Object balanceLock = new Object();
 
     /**
      * Constructor for ClientLibrary with default port allocation.
@@ -62,6 +65,9 @@ public class ClientLibrary {
         memberManager = new MemberManager(name);
         memberManager.setupMemberLinks();
         clientManager = new ClientManager("src/main/resources/accounts.json");
+        
+        // Start background thread for message processing
+        startMessageProcessingThread();
     }
 
     /**
@@ -75,6 +81,76 @@ public class ClientLibrary {
         this.httpPort = httpPort;
         Logger.log(Logger.CLIENT_LIBRARY, "Initialized client library on port " + port);
         initializeRestApi();
+    }
+
+    /**
+     * Starts a background thread to continuously process incoming messages.
+     */
+    private void startMessageProcessingThread() {
+        Thread messageThread = new Thread(() -> {
+            while (true) {
+                try {
+                    waitForMessages();
+                    Thread.sleep(100); // Short sleep to prevent CPU hogging
+                } catch (Exception e) {
+                    Logger.log(Logger.CLIENT_LIBRARY, "Error in message thread: " + e.getMessage());
+                }
+            }
+        });
+        messageThread.setDaemon(true);
+        messageThread.start();
+        Logger.log(Logger.CLIENT_LIBRARY, "Message processing thread started");
+    }
+
+    /**
+     * Waits for and processes incoming messages.
+     * Should be called periodically or run in a separate thread.
+     */
+    public void waitForMessages() {
+        try {
+            for (AuthenticatedPerfectLinks link : memberManager.getMemberLinks().values()) {
+                List<AuthenticatedMessage> receivedMessages = null;
+                try {
+                    receivedMessages = link.getReceivedMessages();
+                    
+                    // Only process messages if the list is not null
+                    if (receivedMessages != null) {
+                        while (!receivedMessages.isEmpty()) {
+                            AuthenticatedMessage message = receivedMessages.remove(0);
+                            Logger.log(Logger.CLIENT_LIBRARY, "Received message from " + message.getSourceId());
+                            processMessage(link.getDestinationEntity(), message);
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Processes incoming messages, routing them to the appropriate handler based on command.
+     * 
+     * @param sourceId The ID of the message source
+     * @param authMessage The authenticated message to process
+     * @throws Exception If processing fails
+     */
+    public void processMessage(String sourceId, AuthenticatedMessage authMessage) throws Exception {
+        String command = authMessage.getCommand();
+        
+        Logger.log(Logger.CLIENT_LIBRARY, "Processing message from " + sourceId + " with command " + command);
+        
+        switch (command) {
+            case "BALANCE":
+                handleBalanceMessage(authMessage);
+                break;
+            // Add other message types as needed
+            default:
+                Logger.log(Logger.CLIENT_LIBRARY, "Unknown command received: " + command);
+                break;
+        }
     }
 
     /**
@@ -158,6 +234,28 @@ public class ClientLibrary {
             }
         }
     }
+
+    /**
+     * Handles BALANCE response messages from the consensus nodes.
+     * 
+     * @param message The message containing the balance
+     */
+    public void handleBalanceMessage(Message message) {
+        Logger.log(Logger.CLIENT_LIBRARY, "Received BALANCE message");
+        String balance = message.getPayload();
+        System.out.println("Received balance: " + balance);
+        
+        // Store the most recently received balance
+        this.lastReceivedBalance = balance;
+        
+        // Notify any waiting threads that we've received the balance
+        synchronized(balanceLock) {
+            balanceReceived = true;
+            balanceLock.notifyAll();
+        }
+    }
+
+    
     /**
      * Handler for the /blockchain/get endpoint.
      */
@@ -174,26 +272,79 @@ public class ClientLibrary {
                 // Extract signature from headers
                 Headers headers = exchange.getRequestHeaders();
                 String signature = headers.getFirst("Signature"); 
-                String senderId = headers.getFirst("Client-Id");
+                String clientName = headers.getFirst("ClientName");
                 if (signature == null) {
                     String response = "{\"error\":\"Missing signature\"}";
                     sendResponse(exchange, 400, response);
                     return;
                 }
-                if (senderId == null) {
+                if (clientName == null) {
                     String response = "{\"error\":\"Missing clientId\"}";
                     sendResponse(exchange, 400, response);
                     return;
                 }
 
-                checkBalance(senderId, signature);
-                // Send "Balance" as the response
-                String response = "{\"message\":\"Balance\"}";
-                sendResponse(exchange, 200, response);
+                // Reset the balance received flag
+                synchronized(balanceLock) {
+                    balanceReceived = false;
+                }
+
+                // Send request for balance
+                boolean requestSent = checkBalance(clientName, signature);
+                if (!requestSent) {
+                    String response = "{\"error\":\"Failed to send balance request\"}";
+                    sendResponse(exchange, 500, response);
+                    return;
+                }
+
+                // Wait for balance response (with timeout)
+                String balance = waitForBalanceResponse(12000); // 12 second timeout
+                
+                if (balance != null) {
+                    // Send the balance as the response
+                    System.out.println("Sending balance response: " + balance);
+                    String response = "{\"clientName\":\"" + clientName + "\",\"balance\":\"" + balance + "\"}";
+                    sendResponse(exchange, 200, response);
+                } else {
+                    System.out.println("Timeout waiting for balance response");
+                    String response = "{\"error\":\"Timeout waiting for balance\"}";
+                    sendResponse(exchange, 504, response);
+                }
 
             } catch (Exception e) {
                 String response = "{\"error\":\"" + e.getMessage() + "\"}";
                 sendResponse(exchange, 500, response);
+            }
+        }
+    }
+
+    /**
+     * Waits for a balance response from the blockchain.
+     * 
+     * @param timeoutMs Maximum time to wait in milliseconds
+     * @return The balance string or null if timeout occurred
+     */
+    private String waitForBalanceResponse(long timeoutMs) {
+        long startTime = System.currentTimeMillis();
+        long endTime = startTime + timeoutMs;
+        
+        synchronized(balanceLock) {
+            while (!balanceReceived && System.currentTimeMillis() < endTime) {
+                try {
+                    long waitTime = endTime - System.currentTimeMillis();
+                    if (waitTime > 0) {
+                        balanceLock.wait(waitTime);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
+            }
+            
+            if (balanceReceived) {
+                return lastReceivedBalance;
+            } else {
+                return null; // Timeout occurred
             }
         }
     }
@@ -210,6 +361,15 @@ public class ClientLibrary {
         outputStream.close();
     }
 
+    public static boolean verify_signature(String signature, String senderId) throws Exception {
+        String decryptedSingature = Encryption.decryptWithPublicKey(senderId, ClientManager.getPublicKey(senderId));
+        if (decryptedSingature.equals(senderId)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    
     /**
      * Allocates a dynamic port for this client instance.
      * 
@@ -267,14 +427,13 @@ public class ClientLibrary {
     }
 
   
-
-  
-    public boolean checkBalance(String signature, String senderId) throws Exception {
+    public boolean checkBalance(String senderId, String signature) throws Exception {
     
         // Create a JSON object with the required data
         JSONObject payload = new JSONObject();
         payload.put("signature", signature);
-        payload.put("senderId", senderId);
+        payload.put("clientName", senderId);
+        System.out.println("............... Sending GET_BALANCE message: " + payload.toString());
     
         // Convert JSON object to string
         String payloadString = payload.toString();

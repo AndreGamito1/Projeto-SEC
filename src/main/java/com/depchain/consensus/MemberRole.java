@@ -40,6 +40,10 @@ public class MemberRole implements Role {
                     case "READ":
                         handleReadMessage(message);
                         break;
+                    case "GET_BALANCE":
+                        System.out.println("............... Received GET_WORLD_STATE message: " + sourceId);
+                        handleGetBalance(message);
+                        break;
                     default:
                         System.out.println("Unknown command: " + message.getCommand());
                         break;
@@ -49,6 +53,14 @@ public class MemberRole implements Role {
         
            
         
+    public void handleGetBalance(AuthenticatedMessage message) {
+        // Send WorldState to the sender
+        String sender = message.getPayload();
+        String balance = member.getWorldState().getBalance(sender);
+        System.out.println("............... Sending balance to " + sender + ": " + balance);
+        member.getMemberManager().sendToMember(member.getMemberManager().getLeaderName(), balance, "BALANCE");
+        }
+
     @Override
     public void processClientCommand(String command, String payload) {
         // Member-specific client command processing

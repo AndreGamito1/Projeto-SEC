@@ -6,6 +6,7 @@ import java.util.function.Predicate;
 import org.json.JSONObject;
 
 import com.depchain.blockchain.Block;
+import com.depchain.blockchain.WorldState;
 import com.depchain.networking.AuthenticatedMessage;
 import com.depchain.utils.*;
 
@@ -126,6 +127,7 @@ public class ConditionalCollect {
         
         return false;
     }
+    
     public void appendAck(String ackPayload, String ackType) {
         if (ackType.equals("ACCEPT")) {
             if (acceptAcked) { return; }
@@ -227,7 +229,7 @@ public class ConditionalCollect {
     private void waitForStates() {
         try {
             // Wait for all members to send their state
-            for (int i = 0; i < 10; i++) {
+            for (int i = 0; i < 12; i++) {
                 Thread.sleep(1000);
                 if (isCollected) { break; }
                 Logger.log(Logger.CONDITIONAL_COLLECT, "Waiting for states");

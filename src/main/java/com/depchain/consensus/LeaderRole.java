@@ -3,6 +3,7 @@ package com.depchain.consensus;
 import com.depchain.utils.Logger;
 import com.depchain.networking.Message;
 import com.depchain.blockchain.Transaction;
+import com.depchain.blockchain.WorldState;
 import com.depchain.blockchain.Block;
 import com.depchain.networking.AuthenticatedMessage;
 import java.util.LinkedList;
@@ -68,6 +69,10 @@ public class LeaderRole implements Role {
                 break;
             case "TRANSACTION":
                 handleTransactionMessage(message);
+                break;
+            case "BALANCE":
+                System.out.println("............... Received BALANCE message: " + sourceId);
+                handleBalanceMessage(message);
                 break;
             default:
                 System.out.println("Unknown command: " + message.getCommand());
@@ -185,22 +190,38 @@ public class LeaderRole implements Role {
     public void handleReadMessage(Message message) {
         // Leader-specific read message handling
     }
+
+    public void handleBalanceMessage(Message message) {
+        Logger.log(Logger.MEMBER, "Received BALANCE message: " + message.getPayload());
+        member.getConsensus().addToBalanceList(message.getPayload());
+
+    }
+
     @Override
     public void handleCheckBalanceMessage(Message message) {
         Logger.log(Logger.MEMBER, "Received CHECK_BALANCE message");
-
+        
         // Extract payload as a JSON object
         String payloadString = message.getPayload();
         JSONObject payloadJson = new JSONObject(payloadString);
-
-        // Extract senderId and signature
-        String senderId = payloadJson.optString("senderId", "Unknown Sender");
+        
+        // Extract clientName and signature
+        String clientName = payloadJson.optString("clientName", "Unknown Client");
         String signature = payloadJson.optString("signature", "Unknown Signature");
-
+        
         // Log the extracted values
-        Logger.log(Logger.LEADER_ERRORS, "Sender ID: " + senderId);
+        Logger.log(Logger.LEADER_ERRORS, "Client Name: " + clientName);
         Logger.log(Logger.LEADER_ERRORS, "Signature: " + signature);
-        /*TODO - Verify signature, get the balance */
+        
+        // Create and start a new thread to handle the balance consensus
+        Thread balanceThread = new Thread(() -> {
+            try {
+                member.getConsensus().getBalanceConsensus(clientName);
+            } catch (Exception e) {
+                Logger.log(Logger.LEADER_ERRORS, "Error in balance consensus thread: " + e.getMessage());
+            }
+        });
+        balanceThread.start();
     }
 
     @Override

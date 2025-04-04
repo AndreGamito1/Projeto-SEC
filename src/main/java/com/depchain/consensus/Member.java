@@ -23,7 +23,7 @@ public class Member {
     private boolean working;
     private ByzantineEpochConsensus epochConsensus;
 
-     private WorldState worldState;
+    private WorldState worldState;
 
      // Configuration file paths (consider making these constants or configurable)
      private static final String GENESIS_ACCOUNTS_FILE_PATH = "src/main/resources/genesis_accounts.json";
@@ -142,6 +142,13 @@ public class Member {
         return name;
     }
 
+    public WorldState getWorldState() {
+        return worldState;
+    }
+
+    public MemberManager getMemberManager() {
+        return memberManager;
+    }
     public ByzantineEpochConsensus getConsensus() {
         return epochConsensus;
     }

@@ -40,6 +40,22 @@ public class WorldState {
         return accounts.get(address);
     }
 
+    /**
+     * Gets the balance of a client by their name.
+     * 
+     * @param clientName The name of the client whose balance to retrieve
+     * @return The balance as a String, or null if the client doesn't exist
+     */
+    public String getBalance(String clientName) {
+        System.out.println("Getting balance for client: " + clientName);
+        AccountState account = getAccount(clientName);
+        if (account == null) {
+            System.out.println("Account not found for client: " + clientName);
+            return null;
+        }
+        return account.getBalance();
+    }
+
     public void addAccount(AccountState accountState) {
         System.out.println("Adding account: " + accountState.getName() + " with address: " + accountState.getAddress());
         nameAddress.put(accountState.getName(), accountState.getAddress());
