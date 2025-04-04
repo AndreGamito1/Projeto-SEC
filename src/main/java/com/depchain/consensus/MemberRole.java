@@ -58,6 +58,14 @@ public class MemberRole implements Role {
     public void processMemberMessage(String memberName, String command, String payload, AuthenticatedMessage message) {
         // Member-specific member message processing
     }
+    @Override
+    public void handleCheckBalanceMessage(Message message) {                
+        // Member-specific check balance message handling
+    }
+
+    @Override
+    public void handleTransactionMessage(Message message) {                
+    }
 
     @Override
     public void logReceivedMessagesStatus() {

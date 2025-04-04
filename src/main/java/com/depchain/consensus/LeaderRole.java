@@ -10,6 +10,9 @@ import java.util.Queue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+
+import org.json.JSONObject;
+
 import java.util.Timer;
 import java.util.TimerTask;
 import java.io.IOException;
@@ -60,26 +63,11 @@ public class LeaderRole implements Role {
             case "ABORT":
                 handleAbortMessage(message);
                 break;
+            case "CHECK_BALANCE":
+                handleCheckBalanceMessage(message);
+                break;
             case "TRANSACTION":
-                Transaction transaction;
-                String serializedTransaction;
-                try {
-                    serializedTransaction = message.getPayload();
-                    // Ensure the serializedTransaction string is valid
-                    if (serializedTransaction == null || serializedTransaction.isEmpty()) {
-                        throw new IOException("Serialized transaction is null or empty.");
-                    }
-
-                    // Use the correct deserialization method
-                    transaction = Transaction.deserializeFromString(serializedTransaction);
-                    if (transaction == null) {
-                        throw new IOException("Deserialization resulted in null object.");
-                    }
-                    System.out.println(transaction.toString());
-                    addTransactionToPool(transaction);
-                } catch (Exception e) {
-                    Logger.log(Logger.CLIENT_LIBRARY, "Error: Failed to deserialize transaction: " + e.getMessage());
-                }
+                handleTransactionMessage(message);
                 break;
             default:
                 System.out.println("Unknown command: " + message.getCommand());
@@ -191,9 +179,51 @@ public class LeaderRole implements Role {
         // Leader-specific message handling
     }
 
+    
+
     @Override
     public void handleReadMessage(Message message) {
         // Leader-specific read message handling
+    }
+    @Override
+    public void handleCheckBalanceMessage(Message message) {
+        Logger.log(Logger.MEMBER, "Received CHECK_BALANCE message");
+
+        // Extract payload as a JSON object
+        String payloadString = message.getPayload();
+        JSONObject payloadJson = new JSONObject(payloadString);
+
+        // Extract senderId and signature
+        String senderId = payloadJson.optString("senderId", "Unknown Sender");
+        String signature = payloadJson.optString("signature", "Unknown Signature");
+
+        // Log the extracted values
+        Logger.log(Logger.LEADER_ERRORS, "Sender ID: " + senderId);
+        Logger.log(Logger.LEADER_ERRORS, "Signature: " + signature);
+        /*TODO - Verify signature, get the balance */
+    }
+
+    @Override
+    public void handleTransactionMessage(Message message) {
+        Transaction transaction;
+        String serializedTransaction;
+        try {
+            serializedTransaction = message.getPayload();
+            // Ensure the serializedTransaction string is valid
+            if (serializedTransaction == null || serializedTransaction.isEmpty()) {
+                throw new IOException("Serialized transaction is null or empty.");
+            }
+
+            // Use the correct deserialization method
+            transaction = Transaction.deserializeFromString(serializedTransaction);
+            if (transaction == null) {
+                throw new IOException("Deserialization resulted in null object.");
+            }
+            System.out.println(transaction.toString());
+            addTransactionToPool(transaction);
+        } catch (Exception e) {
+            Logger.log(Logger.CLIENT_LIBRARY, "Error: Failed to deserialize transaction: " + e.getMessage());
+        }
     }
 
     @Override

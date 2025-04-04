@@ -14,6 +14,7 @@ import java.net.InetSocketAddress;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
+import com.sun.net.httpserver.Headers;
 
 import org.json.JSONObject;
 
@@ -157,7 +158,6 @@ public class ClientLibrary {
             }
         }
     }
-
     /**
      * Handler for the /blockchain/get endpoint.
      */
@@ -171,9 +171,24 @@ public class ClientLibrary {
                     return;
                 }
 
-                String blockchain = getBlockchain();
+                // Extract signature from headers
+                Headers headers = exchange.getRequestHeaders();
+                String signature = headers.getFirst("Signature"); 
+                String senderId = headers.getFirst("Client-Id");
+                if (signature == null) {
+                    String response = "{\"error\":\"Missing signature\"}";
+                    sendResponse(exchange, 400, response);
+                    return;
+                }
+                if (senderId == null) {
+                    String response = "{\"error\":\"Missing clientId\"}";
+                    sendResponse(exchange, 400, response);
+                    return;
+                }
 
-                String response = "{\"blockchain\":" + JSONObject.quote(blockchain) + "}";
+                checkBalance(senderId, signature);
+                // Send "Balance" as the response
+                String response = "{\"message\":\"Balance\"}";
                 sendResponse(exchange, 200, response);
 
             } catch (Exception e) {
@@ -253,53 +268,29 @@ public class ClientLibrary {
 
   
 
-    /**
-     * Gets the current blockchain with improved message handling.
-     * 
-     * @return The blockchain as a formatted string
-     * @throws Exception If getting fails
-     */
-    public String getBlockchain() throws Exception {
-        leaderLink.clearReceivedMessages();
-
-        sendToLeader("", "GET_BLOCKCHAIN");
-        Logger.log(Logger.CLIENT_LIBRARY, "Sent get blockchain request");
-
-        final int MAX_RETRIES = 5;
-        final int RETRY_DELAY_MS = 1000;
-
-        for (int retry = 0; retry < MAX_RETRIES; retry++) {
-            Thread.sleep(RETRY_DELAY_MS);
-
-            List<AuthenticatedMessage> messages = leaderLink.getReceivedMessages();
-            for (AuthenticatedMessage authMsg : messages) {
-                Message message = authMsg;
-                Logger.log(Logger.CLIENT_LIBRARY, "Received message: " + message);
-                if (message.getCommand().equals("BLOCKCHAIN_RESULT")) {
-                    return message.getPayload();
-                }
-            }
-
-            if (retry < MAX_RETRIES - 1) {
-                Logger.log(Logger.CLIENT_LIBRARY, "No response yet, retrying...");
-            }
+  
+    public boolean checkBalance(String signature, String senderId) throws Exception {
+    
+        // Create a JSON object with the required data
+        JSONObject payload = new JSONObject();
+        payload.put("signature", signature);
+        payload.put("senderId", senderId);
+    
+        // Convert JSON object to string
+        String payloadString = payload.toString();
+    
+       try {
+            // Send the JSON payload
+            sendToLeader(payloadString, "CHECK_BALANCE");
+            Logger.log(Logger.CLIENT_LIBRARY, "Sent get blockchain request"); 
+            return true;
+        } catch (Exception e) {
+            Logger.log(Logger.CLIENT_LIBRARY, "Error: Failed sending proposal: " + e.getMessage());
+            throw new Exception("Failed to send proposal to leader", e);
         }
-
-        Logger.log(Logger.CLIENT_LIBRARY, "No blockchain data received after " + MAX_RETRIES + " attempts");
-        return "No blockchain data received after timeout. Please try again.";
     }
 
-    /**
-     * Sends a test message to the leader.
-     * 
-     * @param times Number of times to run the test
-     * @throws Exception If sending fails
-     */
-    public void sendTestMessage(int times) throws Exception {
-        sendToLeader(String.valueOf(times), "TEST");
-        Logger.log(Logger.CLIENT_LIBRARY, "Sent test message for " + times + " run(s)");
-    }
-
+ 
     /**
      * Sends a message to the leader.
      * 

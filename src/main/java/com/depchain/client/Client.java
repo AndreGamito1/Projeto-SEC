@@ -114,6 +114,7 @@ public class Client {
             e.printStackTrace();
         }
     }
+    
     private void generateKeyPair(String publicKeyPath, String privateKeyPath) {
         try {
             // Generate RSA key pair
@@ -143,7 +144,6 @@ public class Client {
         }
     }
 
-
     /**
      * Gets the client's unique identifier.
      * 
@@ -152,7 +152,7 @@ public class Client {
     public String getClientId() {
         return clientId;
     }
-    
+
     /**
      * Gets the client's port.
      * 
@@ -164,7 +164,7 @@ public class Client {
     
 /**
      * Sends the sender name, receiver name, and amount as JSON to the server.
-     * Extremely basic, NO security or validation beyond basic input checks.
+     * 
      *
      * @param receiverName The name of the recipient.
      * @param amountString The amount to transfer (as a string).
@@ -260,15 +260,25 @@ public class Client {
      * @return The blockchain as a formatted string
      * @throws Exception If the retrieval fails
      */
-    public String getBlockchain() throws Exception {
+    public String checkBalance() throws Exception {
+        String signature = null;
+        try {
+            signature = Encryption.encryptWithPrivateKey(clientId, this.privateKey);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "Error: Could not generate signature";
+        }
+
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + "/blockchain/get"))
+                    .header("Signature", signature) // Adding signature to headers
+                    .header("Client-Id", clientId)  // Optionally add client ID
                     .GET()
                     .build();
-            
+
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            
+
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 JSONObject jsonResponse = new JSONObject(response.body());
                 return jsonResponse.optString("blockchain", "No blockchain data received");
@@ -281,6 +291,7 @@ public class Client {
             return "Error: Could not connect to blockchain service";
         }
     }
+
        
     /**
      * Main method to initialize and run a client.
@@ -320,7 +331,7 @@ public class Client {
         while (running) {
             System.out.println("\n=== Blockchain Client: " + client.getClientId() + " ===");
             System.out.println("1. Append data to blockchain");
-            //System.out.println("2. View current blockchain");
+            System.out.println("2. Check my balance");
             System.out.println("0. Exit");
             System.out.print("Enter choice: ");
             
@@ -344,9 +355,8 @@ public class Client {
                         
                     case "2":
                         System.out.println("Retrieving blockchain data...");
-                        String blockchain = client.getBlockchain();
-                        System.out.println("\n=== Current Blockchain State ===");
-                        System.out.println(blockchain);
+                        String blockchain = client.checkBalance();
+
                         break;
                         
                     case "0":
