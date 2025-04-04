@@ -11,17 +11,15 @@
 
 - ~~Implementar o genesisBlock.json~~
 
-
 #### Client
-- Criar "See Balance": 
-    - No client.java & clientLibrary.java
+- ~~Criar "See Balance":~~
 - Optional flex: fazer getTransactions(client) q retorna todas as transacoes onde client esteve envolvido
 
 #### Leader
 - ~~Fazer o consenso sobre o bloco~~
 - ~~Atualizar o world state~~
 - Verificar Signature
-- quando recebe um "See Balance" do cliente, pede worldstate a todos, quando receber quorum, devolve ao cliente
+- ~~quando recebe um "See Balance" do cliente, pede worldstate a todos, quando receber quorum, devolve ao cliente~~
 
 - testes
 - smart contracts
