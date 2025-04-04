@@ -21,6 +21,7 @@ public class ByzantineEpochConsensus {
     private WorldState worldState;
     private List<String> balanceList = new ArrayList<>();
     private boolean balancesColletected = false;
+    private String behavior = "default"; // beehavior of the member (for byzantine behavior)
 
 
 
@@ -42,6 +43,16 @@ public class ByzantineEpochConsensus {
         this.worldState = worldState;
     }
 
+    public ByzantineEpochConsensus(Member member, MemberManager memberManager, WorldState worldState, String behavior) {
+        this.member = member;
+        this.epochState = new EpochState(0, null);
+        this.writeset = new ArrayList<>();
+        this.conditionalCollect = null;
+        this.memberManager = memberManager;
+        this.worldState = worldState;
+        this.behavior = behavior;
+    }
+
     
     public void start() {
         Logger.log(Logger.MEMBER, "Byzantine Epoch Consensus running!");
@@ -52,8 +63,13 @@ public class ByzantineEpochConsensus {
     }
 
     public void handleProposeMessage(String serializedBlock) {
-        this.conditionalCollect = new ConditionalCollect(memberManager, this);
-        System.out.println("---------------------- STARTED COND COLLECT ----------------------");
+        if (!this.behavior.equals("default")) {
+            this.conditionalCollect = new ByzantineConditionalCollect(memberManager, this, this.behavior);
+        } else {
+            this.conditionalCollect = new ConditionalCollect(memberManager, this);
+        }
+
+        System.out.println("---------------------- STARTED COND COLLECT with " + this.behavior + " behavior ----------------------");
         int currentTimestamp = epochState.getTimeStamp();
         Logger.log(Logger.EPOCH_CONSENSUS, "Current timestamp: " + currentTimestamp);
         int nextTimestamp;
@@ -82,6 +98,8 @@ public class ByzantineEpochConsensus {
         conditionalCollect = null; // reset the conditional collect
         System.out.println("---------------------- CLOSED COND COLLECT ----------------------");
         member.addToBlockchain(state.getValue());
+        Message decideMessage = new Message("","DECIDE","", "");
+        member.getQuorumDecideMessages().add(decideMessage);
         setState(state);
     }
 
@@ -96,6 +114,8 @@ public class ByzantineEpochConsensus {
 
     public void abort() {
         Logger.log(Logger.EPOCH_CONSENSUS, "Aborting consensus process");
+        Message abortMessage = new Message("","DECIDE","", "");
+        member.getQuorumAbortMessages().add(abortMessage);
         conditionalCollect = null; // reset the conditional collect
         System.out.println("---------------------- ABORTED COND COLLECT ----------------------");
     }

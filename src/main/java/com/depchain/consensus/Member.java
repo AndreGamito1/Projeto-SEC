@@ -93,6 +93,65 @@ public class Member {
         start();
     }
 
+    public Member(String name, String behavior) throws Exception {
+        this.name = name; 
+        this.memberManager = new MemberManager(name);
+        this.working = false;
+        this.quorumAbortMessages = new ArrayList<>();
+        this.quorumDecideMessages = new ArrayList<>();
+        this.blockchain = new ArrayList<>();
+        System.out.println("Member created: " + name + " with behavior: " + behavior);
+        setupMemberLinks();
+
+
+        if (memberManager.isLeader()) {
+            currentRole = new LeaderRole(this);
+        }
+        else {
+            currentRole = new MemberRole(this);
+        }
+        this.blockchain = new ArrayList<>();
+
+
+        try {
+            System.out.println("Member " + name + " is loading genesis world state...");
+
+            // Load the WorldState using the classpath resource name and the map
+            WorldState worldState = new WorldState();
+            this.worldState = worldState;
+            worldState.loadGenesisState();
+            
+            // Print loaded accounts
+            System.out.println("Loaded accounts from genesis block:");
+            for (AccountState account : worldState.getAccounts().values()) {
+                System.out.println(account);
+            }
+
+
+            // --- Optional: Initialize the blockchain list with the Genesis Block ---
+            Block genesisBlock = createGenesisBlockObject();
+            if (genesisBlock != null) {
+                this.blockchain.add(genesisBlock);
+            }
+
+            this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, worldState, behavior);
+
+            System.out.println("Blockchain state: " + this.blockchain);
+
+        } catch (IOException e) {
+            System.err.println("FATAL: Member " + name + " could not load genesis files ("
+                             + GENESIS_ACCOUNTS_FILE_PATH + " or " + GENESIS_BLOCK_RESOURCE_NAME + "): " + e.getMessage());
+            throw new RuntimeException("Failed to load genesis configuration for member " + name, e); // Halt if fails
+        } catch (Exception e) { // Catch other potential errors from GenesisKeyLoader or WorldState.load
+            System.err.println("FATAL: Member " + name + " encountered an error during genesis initialization: " + e.getMessage());
+             // Re-throwing Exception as declared by the constructor
+             // or wrap in RuntimeException if you prefer unchecked exceptions here
+            throw e;
+        }
+
+
+        start();
+    }
     public Block createGenesisBlockObject() {
         try {
             ObjectMapper mapper = new ObjectMapper();

@@ -58,7 +58,7 @@ public class ConditionalCollect {
         Logger.log(Logger.CONDITIONAL_COLLECT, "Checking quorum with " + collected.size() + " entries");
         
         // If we don't have enough entries, quorum can't be reached
-        if (collected.size() < memberManager.getQuorumSize()) {
+        if (collected.size() < (memberManager.getQuorumSize())) {  // -1 because the leader is not included in the count
             Logger.log(Logger.CONDITIONAL_COLLECT, "Not enough entries for quorum: " + collected.size() + " < " + memberManager.getQuorumSize());
             return false;
         }
@@ -84,13 +84,21 @@ public class ConditionalCollect {
         // Check if any value has reached quorum
         for (Map.Entry<String, Integer> entry : valueCounts.entrySet()) {
             Integer count = entry.getValue();
+            String value = entry.getKey();
             
             Logger.log(Logger.CONDITIONAL_COLLECT, "Checking value with count: " + count);
-            
-            if (count >= memberManager.getQuorumSize()) {
-                Logger.log(Logger.CONDITIONAL_COLLECT, "Quorum reached");
-                return true;
+            if (value.equals("NULL_VALUE")) {
+                if (count >= memberManager.getQuorumSize() - 1) { // -1 because the leader is not included in the count
+                    Logger.log(Logger.CONDITIONAL_COLLECT, "Quorum reached with null value: " + count);
+                    return true;
+                }
+            } else {
+                if (count >= memberManager.getQuorumSize()) {
+                    Logger.log(Logger.CONDITIONAL_COLLECT, "Quorum reached");
+                    return true;
+                }
             }
+
         }
         
         Logger.log(Logger.CONDITIONAL_COLLECT, "No quorum reached");
@@ -99,7 +107,7 @@ public class ConditionalCollect {
 
     public boolean checkAckQuorum(Map<String, String> Acks) {
         // If we don't have enough entries, quorum can't be reached
-        if (Acks.size() < memberManager.getQuorumSize()) {
+        if (Acks.size() < (memberManager.getQuorumSize() - 1)) { // - 1 because we count with ourself
             return false;
         }
         
@@ -119,7 +127,7 @@ public class ConditionalCollect {
         
         // Check if any value has reached quorum
         for (Integer count : valueCounts.values()) {
-            if (count >= memberManager.getQuorumSize()) {
+            if (count >= (memberManager.getQuorumSize() - 1)) { // -1 because we count with ourself
                 Logger.log(Logger.CONDITIONAL_COLLECT, "Quorum reached with value: " + count);
                 return true;
             }
@@ -226,7 +234,7 @@ public class ConditionalCollect {
 
     }
 
-    private void waitForStates() {
+    protected void waitForStates() {
         try {
             // Wait for all members to send their state
             for (int i = 0; i < 12; i++) {
@@ -359,7 +367,7 @@ public class ConditionalCollect {
             // Wait for enough write acknowledgments (quorum)
             for (int i = 0; i < 12; i++) {
                 Thread.sleep(1000);
-                if (writeAcks.size() == memberManager.getQuorumSize()) { break; }
+                if (writeAcks.size() == (memberManager.getQuorumSize() - 1)) { break; }
                 Logger.log(Logger.CONDITIONAL_COLLECT, "current write acks: " + writeAcks.size() + "/" + memberManager.getQuorumSize());
             }
             
@@ -395,7 +403,7 @@ public class ConditionalCollect {
             Logger.log(Logger.CONDITIONAL_COLLECT, "------------- ACCEPT SIZE: " + acceptAcks.size() + " QUORUM SIZE: " + memberManager.getQuorumSize() + "----------");
             for (int i = 0; i < 12; i++) {
                 Thread.sleep(1000);
-                if (acceptAcks.size() == memberManager.getQuorumSize()) { break; }
+                if (acceptAcks.size() == (memberManager.getQuorumSize() - 1)) { break; }
                 Logger.log(Logger.CONDITIONAL_COLLECT, "current accept acks: " + acceptAcks.size() + "/" + memberManager.getQuorumSize());
             }
             
@@ -475,7 +483,7 @@ public class ConditionalCollect {
      * @param payload String in format "key1: [timstamp1, value1], key2: [timestamp2, value2], ..."
      * @return HashMap containing the parsed key-value pairs
      */
-    private Map<String, EpochState> parseCollectedPayload(String payload) {
+    protected Map<String, EpochState> parseCollectedPayload(String payload) {
         Map<String, EpochState> collected = new HashMap<>();
         Logger.log(Logger.CONDITIONAL_COLLECT, "Parsing collected payload");
         
@@ -537,7 +545,7 @@ public class ConditionalCollect {
         return collected;
     }
     
-    private void abort() {
+    protected void abort() {
         Logger.log(Logger.CONDITIONAL_COLLECT, "Aborting conditional collect");
         collected.clear();
         writeAcks.clear();

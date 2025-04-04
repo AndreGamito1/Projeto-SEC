@@ -22,8 +22,15 @@ public class Main {
             return;
         }
         try {
-            Member member = new Member(args[0]);
-            member.start();
+            if(args.length > 1) {
+                Member member = new Member(args[0], args[1]);
+                member.start();
+            }
+            else {
+                Member member = new Member(args[0]);
+                member.start();
+            }
+            
         } catch (Exception e) {
             e.printStackTrace();
         }

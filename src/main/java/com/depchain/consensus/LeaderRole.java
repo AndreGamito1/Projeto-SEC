@@ -284,11 +284,12 @@ public class LeaderRole implements Role {
         member.getQuorumDecideMessages().add(message);
         Logger.log(Logger.MEMBER, "Quorum size for DECIDE's: " + member.getQuorumSize());
         
-        if (member.getQuorumDecideMessages().size() == member.getQuorumSize()) {
+        if (member.getQuorumDecideMessages().size() == (member.getQuorumSize() - 1)) {
             Logger.log(Logger.MEMBER, "Received quorum of DECIDE messages");
             
             // Clear the decided messages
             member.getQuorumDecideMessages().clear();
+            member.getQuorumAbortMessages().clear();
             Logger.log(Logger.LEADER_ERRORS, "BLOCKCHAIN: " + member.getBlockchain());
             
             // Check if there are any queued messages
@@ -319,11 +320,12 @@ public class LeaderRole implements Role {
         member.getQuorumAbortMessages().add(message);
         Logger.log(Logger.MEMBER, "Quorum size for ABORTS's: " + member.getQuorumSize());
         
-        if (member.getQuorumAbortMessages().size() == member.getQuorumSize()) {
+        if (member.getQuorumAbortMessages().size() == (member.getQuorumSize())) {
             Logger.log(Logger.MEMBER, "Received quorum of ABORT messages");
             
             // Clear the abort messages
             member.getQuorumAbortMessages().clear();
+            member.getQuorumDecideMessages().clear();
             Logger.log(Logger.LEADER_ERRORS, "BLOCKCHAIN: " + member.getBlockchain());
             
             // Check if there are any queued messages
