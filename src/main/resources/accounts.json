@@ -1,10 +1,10 @@
 {
   "clients": [
     {
-      "name": "Andre",
+      "name": "Pereira",
       "address": "0xFEDCBA9876543210FEDCBA9876543210FEDCBA98",
-      "publicKeyPath": "src/main/resources/accountKeys/andre_pub.pem",
-      "privateKeyPath": "src/main/resources/accountKeys/andre_priv.pem"
+      "publicKeyPath": "src/main/resources/accountKeys/pereira_pub.pem",
+      "privateKeyPath": "src/main/resources/accountKeys/pereira_priv.pem"
     },
     {
       "name": "Miguel",
