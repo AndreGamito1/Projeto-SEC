@@ -8,6 +8,7 @@ import org.json.JSONObject;
 import com.depchain.blockchain.Block;
 import com.depchain.blockchain.WorldState;
 import com.depchain.networking.AuthenticatedMessage;
+import com.depchain.networking.Message;
 import com.depchain.utils.*;
 
 /**
@@ -18,6 +19,8 @@ public class ConditionalCollect {
     private Map <String, EpochState>  collected = new HashMap<>();
     private Map <String, String> writeAcks = new HashMap<>();
     private Map <String, String> acceptAcks = new HashMap<>();
+    private List<Message> quorumDecideMessages;
+    private List<Message> quorumAbortMessages;
     private boolean isCollected = false;
     private boolean writeAcked = false;
     private boolean acceptAcked = false;
@@ -35,8 +38,40 @@ public class ConditionalCollect {
         this.memberManager = memberManager;
         this.name = memberManager.getName();
         this.epochConsensus = epochConsensus;
+        this.quorumDecideMessages = new ArrayList<>();
+        this.quorumAbortMessages = new ArrayList<>();
     }
 
+    public void handleDecideMessage(Message message) {
+        Logger.log(Logger.MEMBER, "Received DECIDE message");
+        Logger.log(Logger.MEMBER, "Current decide size: " + quorumDecideMessages.size() + " Quorum size: " + memberManager.getQuorumSize());
+        quorumDecideMessages.add(message);
+
+        
+        if (quorumDecideMessages.size() >= (memberManager.getQuorumSize())) {
+            Logger.log(Logger.MEMBER, "Received quorum of DECIDE messages");
+            
+            // Clear the decided messages
+            quorumDecideMessages.clear();
+            quorumAbortMessages.clear();
+            epochConsensus.decided();            
+        }
+    }
+
+    public void handleAbortMessage(Message message) {
+        Logger.log(Logger.MEMBER, "Received ABORT message");
+        Logger.log(Logger.MEMBER, "Current abort size: " + quorumAbortMessages.size() + " Quorum size: " + memberManager.getQuorumSize());
+        quorumAbortMessages.add(message);
+        
+        if (quorumAbortMessages.size() >= (memberManager.getQuorumSize())) {
+            Logger.log(Logger.MEMBER, "Received quorum of ABORT messages");
+            
+            // Clear the decided messages
+            quorumDecideMessages.clear();
+            quorumAbortMessages.clear();
+            epochConsensus.aborted();            
+        }
+    }
     public void setCollected(String payload) {
         collected = parseCollectedPayload(payload);
         isCollected = true;
@@ -423,6 +458,7 @@ public class ConditionalCollect {
                 writeAcks.clear();
                 acceptAcks.clear();
                 isCollected = false;
+                quorumDecideMessages.add(new Message("", "", "DECIDE", ""));
             }
 
             // Phase 4: Decide the value
@@ -552,6 +588,7 @@ public class ConditionalCollect {
         acceptAcks.clear();
         isCollected = false;
         epochConsensus.abort();
+        quorumAbortMessages.add(new Message("", "", "ABORT", ""));
         for (String member : memberManager.getMemberLinks().keySet()) {
             memberManager.sendToMember(member, "", "ABORT");
         }

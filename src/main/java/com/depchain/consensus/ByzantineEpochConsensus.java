@@ -57,7 +57,45 @@ public class ByzantineEpochConsensus {
     public void start() {
         Logger.log(Logger.MEMBER, "Byzantine Epoch Consensus running!");
     }
+
+    public void handleDecideMessage(Message message) {
+        if (conditionalCollect != null) {
+            Logger.log(Logger.EPOCH_CONSENSUS, "Received DECIDE message: " + message.getPayload());
+            conditionalCollect.handleDecideMessage(message);
+        }
+        else { System.out.println("Received Decide but conditional collect is null"); }
+    }
     
+    public void handleAbortMessage(Message message) {
+        if (conditionalCollect != null) {
+            Logger.log(Logger.EPOCH_CONSENSUS, "Received ABORT message: " + message.getPayload());
+            conditionalCollect.handleAbortMessage(message);
+        }
+        else { System.out.println("Received Abort but conditional collect is null"); }
+    }
+    
+    public void decided() {
+        try {
+            if (memberManager.isLeader()) { 
+                conditionalCollect = null; 
+                System.out.println("----------------------LEADER  CLOSED COND COLLECT ----------------------");} // reset the conditional collect 
+            member.decided();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void aborted() {
+        try {
+            if (memberManager.isLeader()) { 
+                conditionalCollect = null; 
+                System.out.println("---------------------- LEADER CLOSED COND COLLECT ----------------------");} // reset the conditional collect 
+            member.aborted();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     public void appendToWriteset(EpochState state) {
         writeset.add(state);
     }
@@ -70,8 +108,8 @@ public class ByzantineEpochConsensus {
         }
 
         System.out.println("---------------------- STARTED COND COLLECT with " + this.behavior + " behavior ----------------------");
+        System.out.println("ENTERING EPOCH: " + (epochState.getTimeStamp() + 1));
         int currentTimestamp = epochState.getTimeStamp();
-        Logger.log(Logger.EPOCH_CONSENSUS, "Current timestamp: " + currentTimestamp);
         int nextTimestamp;
         nextTimestamp = currentTimestamp + 1;
         EpochState proposedState = new EpochState(nextTimestamp, serializedBlock);
@@ -95,11 +133,11 @@ public class ByzantineEpochConsensus {
 
     public void decide(EpochState state){
         Logger.log(Logger.EPOCH_CONSENSUS, "Deciding on value: " + state);
-        conditionalCollect = null; // reset the conditional collect
-        System.out.println("---------------------- CLOSED COND COLLECT ----------------------");
+        if (!memberManager.isLeader()) { 
+            conditionalCollect = null;
+            System.out.println("---------------------- CLOSED COND COLLECT ----------------------");} // reset the conditional collect 
+
         member.addToBlockchain(state.getValue());
-        Message decideMessage = new Message("","DECIDE","", "");
-        member.getQuorumDecideMessages().add(decideMessage);
         setState(state);
     }
 
@@ -114,10 +152,12 @@ public class ByzantineEpochConsensus {
 
     public void abort() {
         Logger.log(Logger.EPOCH_CONSENSUS, "Aborting consensus process");
-        Message abortMessage = new Message("","DECIDE","", "");
-        member.getQuorumAbortMessages().add(abortMessage);
-        conditionalCollect = null; // reset the conditional collect
-        System.out.println("---------------------- ABORTED COND COLLECT ----------------------");
+        if (!memberManager.isLeader()) { 
+            conditionalCollect = null; 
+            System.out.println("---------------------- ABORTED COND COLLECT ----------------------");
+        }// reset the conditional collect 
+
+        
     }
     
     public void addToBalanceList(String balance) {

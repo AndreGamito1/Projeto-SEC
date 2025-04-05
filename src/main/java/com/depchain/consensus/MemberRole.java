@@ -77,9 +77,18 @@ public class MemberRole implements Role {
     }
 
     @Override
-    public void handleTransactionMessage(Message message) {                
+    public void decided(){
+        // Member-specific decision handling
     }
 
+    @Override
+    public void aborted(){
+        // Member-specific abort handling
+    }
+
+    @Override
+    public void handleTransactionMessage(Message message) {                
+    }
     @Override
     public void logReceivedMessagesStatus() {
         // Member-specific logging

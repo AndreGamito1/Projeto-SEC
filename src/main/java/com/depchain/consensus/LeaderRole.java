@@ -184,7 +184,15 @@ public class LeaderRole implements Role {
         // Leader-specific message handling
     }
 
-    
+    @Override
+    public void handleDecideMessage(Message message) {
+        member.getConsensus().handleDecideMessage(message);
+    }
+
+    @Override
+    public void handleAbortMessage(Message message) {
+        member.getConsensus().handleAbortMessage(message);
+    }
 
     @Override
     public void handleReadMessage(Message message) {
@@ -258,8 +266,8 @@ public class LeaderRole implements Role {
         
         // If the member is already working on a message, queue this one
         if (member.isWorking()) {
-            Logger.log(Logger.LEADER_ERRORS, "Already working on a message, queueing: " + block.toString());
             blockQueue.add(block);
+            Logger.log(Logger.LEADER_ERRORS, "Already working on a message, queueing block, queue size now: " + blockQueue.size());
         } else {
             try {
                 // Serialize the block
@@ -279,74 +287,48 @@ public class LeaderRole implements Role {
     }
 
     @Override
-    public void handleDecideMessage(Message message) {
-        Logger.log(Logger.MEMBER, "Received DECIDE message");
-        member.getQuorumDecideMessages().add(message);
-        Logger.log(Logger.MEMBER, "Quorum size for DECIDE's: " + member.getQuorumSize());
-        
-        if (member.getQuorumDecideMessages().size() == (member.getQuorumSize() - 1)) {
-            Logger.log(Logger.MEMBER, "Received quorum of DECIDE messages");
+    public void decided() {
+        // Check if there are any queued messages
+        if (!blockQueue.isEmpty()) {
+            // Take the next message from the queue and process it
+            Block nextBlock = blockQueue.poll();
+            Logger.log(Logger.LEADER_ERRORS, "---------------------------Processing next queued message: -------------------------" + nextBlock.toString());
             
-            // Clear the decided messages
-            member.getQuorumDecideMessages().clear();
-            member.getQuorumAbortMessages().clear();
-            Logger.log(Logger.LEADER_ERRORS, "BLOCKCHAIN: " + member.getBlockchain());
-            
-            // Check if there are any queued messages
-            if (!blockQueue.isEmpty()) {
-                // Take the next message from the queue and process it
-                Block nextBlock = blockQueue.poll();
-                Logger.log(Logger.LEADER_ERRORS, "Processing next queued message: " + nextBlock.toString());
-                
-                try {
-                    // Continue working on the next message
-                    String serializedBlock = nextBlock.toBase64String();
-                    member.getConsensus().handleProposeMessage(serializedBlock);
-                } catch (IOException e) {
-                    Logger.log(Logger.LEADER_ERRORS, "Error serializing block: " + e.getMessage());
-                    member.setWorking(false);
-                }
-            } else {
-                // No more messages to process, set working to false
+            try {
+                // Continue working on the next message
+                String serializedBlock = nextBlock.toBase64String();
+                member.getConsensus().handleProposeMessage(serializedBlock);
+            } catch (IOException e) {
+                Logger.log(Logger.LEADER_ERRORS, "Error serializing block: " + e.getMessage());
                 member.setWorking(false);
-                Logger.log(Logger.LEADER_ERRORS, "No more messages in queue, setting working to false");
             }
+        } else {
+            // No more messages to process, set working to false
+            member.setWorking(false);
+            Logger.log(Logger.LEADER_ERRORS, "No more messages in queue, setting working to false");
         }
     }
 
     @Override
-    public void handleAbortMessage(Message message) {
-        Logger.log(Logger.MEMBER, "Received ABORT message: " + message.getPayload());
-        member.getQuorumAbortMessages().add(message);
-        Logger.log(Logger.MEMBER, "Quorum size for ABORTS's: " + member.getQuorumSize());
-        
-        if (member.getQuorumAbortMessages().size() == (member.getQuorumSize())) {
-            Logger.log(Logger.MEMBER, "Received quorum of ABORT messages");
+    public void aborted() {            
+        // Check if there are any queued messages
+        if (!blockQueue.isEmpty()) {
+            // Take the next message from the queue and process it
+            Block nextBlock = blockQueue.poll();
+            Logger.log(Logger.LEADER_ERRORS, "Processing next queued message: " + nextBlock.toString());
             
-            // Clear the abort messages
-            member.getQuorumAbortMessages().clear();
-            member.getQuorumDecideMessages().clear();
-            Logger.log(Logger.LEADER_ERRORS, "BLOCKCHAIN: " + member.getBlockchain());
-            
-            // Check if there are any queued messages
-            if (!blockQueue.isEmpty()) {
-                // Take the next message from the queue and process it
-                Block nextBlock = blockQueue.poll();
-                Logger.log(Logger.LEADER_ERRORS, "Processing next queued message: " + nextBlock.toString());
-                
-                try {
-                    // Continue working on the next message
-                    String serializedBlock = nextBlock.toBase64String();
-                    member.getConsensus().handleProposeMessage(serializedBlock);
-                } catch (IOException e) {
-                    Logger.log(Logger.LEADER_ERRORS, "Error serializing block: " + e.getMessage());
-                    member.setWorking(false);
-                }
-            } else {
-                // No more messages to process, set working to false
+            try {
+                // Continue working on the next message
+                String serializedBlock = nextBlock.toBase64String();
+                member.getConsensus().handleProposeMessage(serializedBlock);
+            } catch (IOException e) {
+                Logger.log(Logger.LEADER_ERRORS, "Error serializing block: " + e.getMessage());
                 member.setWorking(false);
-                Logger.log(Logger.LEADER_ERRORS, "No more messages in queue, setting working to false");
             }
+        } else {
+            // No more messages to process, set working to false
+            member.setWorking(false);
+            Logger.log(Logger.LEADER_ERRORS, "No more messages in queue, setting working to false");
         }
     }
 
