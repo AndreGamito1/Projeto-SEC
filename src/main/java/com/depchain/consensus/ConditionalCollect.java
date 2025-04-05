@@ -367,7 +367,7 @@ public class ConditionalCollect {
             // Wait for enough write acknowledgments (quorum)
             for (int i = 0; i < 12; i++) {
                 Thread.sleep(1000);
-                if (writeAcks.size() == (memberManager.getQuorumSize() - 1)) { break; }
+                if (writeAcks.size() >= (memberManager.getQuorumSize() - 1)) { break; }
                 Logger.log(Logger.CONDITIONAL_COLLECT, "current write acks: " + writeAcks.size() + "/" + memberManager.getQuorumSize());
             }
             
@@ -403,7 +403,7 @@ public class ConditionalCollect {
             Logger.log(Logger.CONDITIONAL_COLLECT, "------------- ACCEPT SIZE: " + acceptAcks.size() + " QUORUM SIZE: " + memberManager.getQuorumSize() + "----------");
             for (int i = 0; i < 12; i++) {
                 Thread.sleep(1000);
-                if (acceptAcks.size() == (memberManager.getQuorumSize() - 1)) { break; }
+                if (acceptAcks.size() >= (memberManager.getQuorumSize() - 1)) { break; }
                 Logger.log(Logger.CONDITIONAL_COLLECT, "current accept acks: " + acceptAcks.size() + "/" + memberManager.getQuorumSize());
             }
             

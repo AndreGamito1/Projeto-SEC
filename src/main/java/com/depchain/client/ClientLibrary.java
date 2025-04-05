@@ -61,14 +61,7 @@ public class ClientLibrary {
      * @throws Exception If initialization fails
      */
     public ClientLibrary(int clientPort) throws Exception {
-        
         this(clientPort, clientPort + 1);
-        memberManager = new MemberManager(name);
-        memberManager.setupMemberLinks();
-        clientManager = new ClientManager("src/main/resources/accounts.json");
-        
-        // Start background thread for message processing
-        startMessageProcessingThread();
     }
 
     /**
