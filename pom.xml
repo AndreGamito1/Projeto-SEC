@@ -17,6 +17,31 @@
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>org.apache.tuweni</groupId>
+            <artifactId>tuweni-bytes</artifactId>
+            <version>2.2.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.hyperledger.besu</groupId>
+            <artifactId>evm</artifactId>
+            <version>23.1.1</version> <!-- Replace with the latest version if needed -->
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.8.9</version>
+        </dependency>
+        <dependency>
+            <groupId>org.web3j</groupId>
+            <artifactId>core</artifactId>
+            <version>4.9.4</version>
+        </dependency>
+        <dependency>
+            <groupId>org.hyperledger.besu</groupId>
+            <artifactId>besu-datatypes</artifactId>
+            <version>23.1.1</version> <!-- Match your Besu version -->
+        </dependency>
         <!-- JSON dependency -->
         <dependency>
             <groupId>org.json</groupId>
@@ -57,6 +82,18 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <repositories>
+        <repository>
+            <id>hyperledger-besu-repo</id>
+            <url>https://hyperledger.jfrog.io/artifactory/besu-maven</url>
+        </repository>
+        <repository>
+            <id>consensys-public</id>
+            <url>https://artifacts.consensys.net/public/maven/maven</url>
+        </repository>
+    </repositories>
+
 
     <build>
         <sourceDirectory>src/main/java</sourceDirectory>
