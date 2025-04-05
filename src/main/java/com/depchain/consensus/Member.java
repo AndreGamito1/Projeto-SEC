@@ -137,7 +137,7 @@ public class Member {
             }
 
             this.epochConsensus = new ByzantineEpochConsensus(this, memberManager, worldState, behavior);
-            recoverWorldState();
+            //recoverWorldState();
             System.out.println("Blockchain state: " + this.blockchain);
 
         } catch (IOException e) {
