@@ -82,7 +82,11 @@ public class WorldState {
             // Check if this account already exists in accounts.json
             AccountInfo accountInfo = accountsMap.get(address);
         
-            
+             // Handle missing accountInfo
+            if (accountInfo == null) {
+                System.out.println("Account info not found for address: " + address + ". Skipping...");
+                continue; // Skip this account if accountInfo is missing
+            }
             // Create account state
             AccountState accountState = new AccountState(
                 address,

@@ -61,6 +61,7 @@ public class ClientLibrary {
      * @throws Exception If initialization fails
      */
     public ClientLibrary(int clientPort) throws Exception {
+        
         this(clientPort, clientPort + 1);
         memberManager = new MemberManager(name);
         memberManager.setupMemberLinks();
@@ -78,9 +79,20 @@ public class ClientLibrary {
      * @throws Exception If initialization fails
      */
     public ClientLibrary(int clientPort, int httpPort) throws Exception {
+        this.port = clientPort; 
         this.httpPort = httpPort;
-        Logger.log(Logger.CLIENT_LIBRARY, "Initialized client library on port " + port);
-        initializeRestApi();
+        initializeRestApi(); // Starts HTTP server
+    
+        this.memberManager = new MemberManager(name); 
+        this.memberManager.setupMemberLinks();
+        this.clientManager = new ClientManager("src/main/resources/accounts.json");
+        startMessageProcessingThread(); 
+    
+        if (this.memberManager != null) {
+             System.out.println("[DEBUG] MemberManager initialized successfully.");
+        } else {
+             System.out.println("[ERROR] MemberManager FAILED to initialize."); 
+        }
     }
 
     /**

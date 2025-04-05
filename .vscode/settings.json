@@ -2,5 +2,8 @@
     "cSpell.words": [
         "datagrams"
     ],
+    "java.project.referencedLibraries": [
+        "jars/*.jar"
+    ],
     "java.configuration.updateBuildConfiguration": "interactive"
 }
