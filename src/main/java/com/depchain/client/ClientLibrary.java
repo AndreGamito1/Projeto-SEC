@@ -532,7 +532,6 @@ public boolean appendToBlockchain(String senderName, String receiverName, double
         }
     }
 
- 
     /**
      * Sends a message to the leader.
      * 
@@ -545,7 +544,6 @@ public boolean appendToBlockchain(String senderName, String receiverName, double
         Logger.log(Logger.CLIENT_LIBRARY, "Leader is " + memberManager.getLeaderName());
         memberManager.sendToMember(memberManager.getLeaderName(), payload, command);
     }
-
 
     /**
      * Main method to start a ClientLibrary instance with command-line parameters.
