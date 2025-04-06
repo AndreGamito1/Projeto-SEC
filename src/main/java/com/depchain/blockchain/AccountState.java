@@ -9,13 +9,13 @@ import java.util.Objects; // For null checks
  * Represents the state of an account in the blockchain
  */
 public class AccountState {
-    private final String address; // Address should be immutable once set
-    private final String publicKeyPath; // Path should be immutable once set
-    private final String privateKeyPath; // Path should be immutable once set
+    private final String address;                    // Address should be immutable once set
+    private final String publicKeyPath;              // Path should be immutable once set
+    private final String privateKeyPath;             // Path should be immutable once set
     private final String name;
-    private String balance; // Balance changes
-    private String code; // Code can be set for contracts, usually immutable after deploy
-    private Map<String, String> storage; // Storage changes
+    private String balance;                          // Balance changes
+    private String code;                             // Code can be set for contracts, usually immutable after deploy
+    private Map<String, String> storage;             // Storage changes
 
     /**
      * Creates a new account state.
@@ -26,12 +26,14 @@ public class AccountState {
      * @param balance        Account balance as String (non-null, use "0" if none).
      */
     public AccountState(String address, String publicKeyPath, String privateKeyPath, String balance, String name) {
-        // Add null checks for critical immutable fields
-        this.name = name;
-        this.address = Objects.requireNonNull(address, "Address cannot be null");
-        this.publicKeyPath = Objects.requireNonNull(publicKeyPath, "Public key path cannot be null");
-        this.privateKeyPath = Objects.requireNonNull(privateKeyPath, "Private key path cannot be null");
-        this.balance = Objects.requireNonNull(balance, "Balance cannot be null");
+        this.address = Objects.requireNonNull(address, "Address cannot be null"); // Keep this check
+        this.publicKeyPath = publicKeyPath;
+        this.privateKeyPath = privateKeyPath;
+    
+    
+        this.balance = (balance == null || balance.isEmpty()) ? "0" : balance;
+        this.name = name; // Name can be null
+        this.code = null; // Initialized to null, set later for contracts
         this.storage = new HashMap<>(); // Initialize storage map
     }
 

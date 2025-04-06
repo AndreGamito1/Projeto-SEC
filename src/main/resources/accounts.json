@@ -41,6 +41,12 @@
       "address": "0x9876543210FEDCBA9876543210FEDCBA98765432",
       "publicKeyPath": "src/main/resources/accountKeys/client2_pub.pem",
       "privateKeyPath": "src/main/resources/accountKeys/client2_priv.pem"
+    },
+    {
+      "name": "istcoin",
+      "address": "0x1b9d7Ff4Ab77A46049197C97358519ECe540F10D",
+      "publicKeyPath": "src/main/resources/accountKeys/istcoin_pub.pem",
+      "privateKeyPath": "src/main/resources/accountKeys/istcoin_priv.pem"
     }
 
   ]

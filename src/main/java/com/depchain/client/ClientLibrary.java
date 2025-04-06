@@ -4,8 +4,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.PublicKey;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -17,6 +20,22 @@ import java.util.stream.Collectors;
 import com.sun.net.httpserver.Headers;
 
 import org.json.JSONObject;
+import org.json.JSONTokener;
+import org.web3j.abi.FunctionEncoder;
+import org.web3j.abi.datatypes.Address;
+import org.web3j.abi.datatypes.generated.Uint256;
+import org.web3j.abi.FunctionEncoder;
+import org.web3j.abi.datatypes.Function;
+import org.web3j.abi.datatypes.Type;
+import org.web3j.abi.datatypes.generated.Uint256;
+import org.web3j.abi.datatypes.Address;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpExchange;
@@ -386,16 +405,38 @@ public class ClientLibrary {
     }
 
     /**
-     * Appends a string to the blockchain.
-     * 
-     * @param data The string to append
-     * @return true if the request was sent, false otherwise
-     * @throws Exception If sending fails
-     */
-    public boolean appendToBlockchain(String senderName, String receiverName, double amount, String senderSignature) throws Exception {
-        // 2. Prepare other Transaction fields
-        String transactionData = "";
-        String signature = senderSignature;
+ * Appends a string to the blockchain.
+ * 
+ * @param senderName     The sender's name (or address)
+ * @param receiverName   The receiver's name (or address)
+ * @param amount         The amount to send (for transactions or smart contracts)
+ * @param senderSignature The signature of the sender
+ * @return true if the request was sent, false otherwise
+ * @throws Exception If sending fails
+ */
+public boolean appendToBlockchain(String senderName, String receiverName, double amount, String senderSignature) throws Exception {
+    // 2. Prepare other Transaction fields
+    String transactionData = "";
+    String signature = senderSignature;
+
+    if (isSmartContract(receiverName)) {
+            // Convert amount from double to BigInteger, since smart contracts work with integer values (Wei)
+            BigInteger amountInWei = convertAmountToWei(amount);
+
+            // Prepare the method call parameters for the smart contract transfer
+            String methodName = "transfer";
+            List<Type> inputParameters = Arrays.asList(
+                new Address(receiverName), // Receiver address
+                new Uint256(amountInWei)    // Amount in Wei
+            );
+
+            // Encode the function call (this is your transaction data)
+            Function function = new Function(methodName, inputParameters, Collections.emptyList());
+            transactionData = FunctionEncoder.encode(function);  // This is your tx.data
+        } else {
+            // If the receiver is not a smart contract, use default transaction data
+            transactionData = "Transaction from " + senderName + " to " + receiverName + " for amount: " + amount;
+        }
 
         // 3. Create the Transaction Object
         Transaction transaction = new Transaction(
@@ -415,20 +456,56 @@ public class ClientLibrary {
             }
         } catch (IOException e) {
             Logger.log(Logger.CLIENT_LIBRARY, "Error: Failed to serialize transaction: " + e.getMessage());
-
             throw new Exception("Serialization failed", e);
         }
 
         // 5. Send the *serialized transaction* to the leader
         try {
             sendToLeader(serializedTransaction, "TRANSACTION");
-            Logger.log(Logger.CLIENT_LIBRARY, "Sent PROPOSE request for transaction."); 
+            Logger.log(Logger.CLIENT_LIBRARY, "Sent PROPOSE request for transaction.");
             return true;
-
         } catch (Exception e) {
             Logger.log(Logger.CLIENT_LIBRARY, "Error: Failed sending proposal: " + e.getMessage());
             throw new Exception("Failed to send proposal to leader", e);
         }
+    }
+
+    /**
+     * Converts the amount in Ether to Wei (BigInteger).
+     * @param amount The amount in Ether.
+     * @return The amount in Wei (BigInteger).
+     */
+    private BigInteger convertAmountToWei(double amount) {
+        // Since Ether has 18 decimals, multiply the amount by 10^18
+        BigDecimal etherValue = BigDecimal.valueOf(amount);
+        BigDecimal weiValue = etherValue.multiply(BigDecimal.valueOf(1_000_000_000_000_000_000L));
+        return weiValue.toBigInteger();
+    }
+
+
+
+    public static boolean isSmartContract(String address) {
+        // Path to the genesis block JSON file
+        String filePath = "src/main/resources/genesisBlock.json";
+
+        try {
+            // Read the JSON content from the file
+            String genesisBlockJson = new String(Files.readAllBytes(Paths.get(filePath)));
+
+            // Parse the JSON
+            JSONObject genesisBlock = new JSONObject(genesisBlockJson);
+            JSONObject state = genesisBlock.getJSONObject("state");
+
+            // Check if the given address exists and has a "code" field (indicating it's a smart contract)
+            if (state.has(address)) {
+                JSONObject account = state.getJSONObject(address);
+                return account.has("code") && !account.isNull("code");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return false; // Address doesn't exist or isn't a smart contract
     }
 
   
