@@ -1,43 +1,10 @@
-# Highly Dependable Systems Project - Stage 1
+# Highly Dependable Systems Project - Stage 2
 
 - André Pereira -  ist1103082
 - André Gamito  -  ist1104167
 - Miguel Bibi   -  ist1102737
 
-## TODO
-
-#### Main
-- ~~Criar Block.java, Transaction.java, WorldState.java e AccountState.java~~
-
-- ~~Implementar o genesisBlock.json~~
-
-#### Client
-- ~~Criar "See Balance":~~
-- Optional flex: fazer getTransactions(client) q retorna todas as transacoes onde client esteve envolvido
-
-#### Leader
-- ~~Fazer o consenso sobre o bloco~~
-- ~~Atualizar o world state~~
-- Verificar Signature
-- ~~quando recebe um "See Balance" do cliente, pede worldstate a todos, quando receber quorum, devolve ao cliente~~
-
-- testes
-- smart contracts
-- report 
-
-### Passos de Implementação
-
-- ~~**Step 1**: Garantir que todos os requisitos da primeira etapa sejam atendidos.~~
-- **Step 2**: Implementar os contratos inteligentes em Solidity e testar sua execução usando o código base EVM do Hyperledger Besu fornecido no segundo trabalho de laboratório (ou seja, lab2).
-- **Step 3**: Implementar o conceito de bloco gênesis, transações, execução de transações (por exemplo, execução de contratos inteligentes), bem como a adição e persistência de blocos.
-- **Step 4**: Conectar o algoritmo de consenso desenvolvido na primeira etapa aos componentes desenvolvidos na primeira etapa. O consenso deve ser responsável por decidir a ordem das transações a serem executadas e adicionadas ao blockchain.
-- **Step 5**: Implementar um conjunto completo de testes que demonstrem que a implementação é robusta contra comportamentos bizantinos.
-
-
-
 ## Demo Quick Start
-
-Due to a late discovery of architectural flaws, we were forced to make significant changes to our architecture, which left us without enough time to complete the full implementation.
 
 You can start the demo using either the provided PowerShell script (Windows) or Bash script (Linux/macOS).
 
@@ -55,6 +22,12 @@ chmod +x run.sh
 ./run.sh
 ```
 
+## Test Scripts
+
+```bash
+# TODO Talk about tests scripts 
+```
+
 ## Manual Startup
 
 To start each component manually:
@@ -67,17 +40,7 @@ mkdir -p shared/priv_keys shared/pub_keys
 rm -rf shared/priv_keys/* shared/pub_keys/*
 ```
 
-## 2. Start Leader
-
-Open a new terminal and run:
-
-```bash
-mvn exec:java -Dexec.mainClass=com.example.Leader
-```
-
-Wait a few seconds for the Leader to initialize.
-
-## 3. Start Members
+## 2. Start Members
 
 Open a new terminal for each member (1-4) and run:
 
@@ -96,8 +59,6 @@ mvn exec:java -Dexec.mainClass=com.example.Member -Dexec.args=member4
 
 ```
 
-Wait a few seconds for all Members to initialize.
-
 ### 4. Start ClientLibrary
 
 Open a new terminal and run:
@@ -111,12 +72,10 @@ mvn exec:java -Dexec.mainClass=com.example.ClientLibrary -Dexec.args=8080
 
 Open a new terminal for each client and run:
 
-```bash
-# Start Client 1
-mvn exec:java -Dexec.mainClass=com.example.Client -Dexec.args=Client1
 
-# For additional clients, use a unique client ID
-mvn exec:java -Dexec.mainClass=com.example.Client -Dexec.args=Client2
+```bash
+# Make sure the client exists in accounts.json & genesisBlock.json
+mvn exec:java -Dexec.mainClass=com.example.Client -Dexec.args=Client1
 ```
 
 ### System Requirements
