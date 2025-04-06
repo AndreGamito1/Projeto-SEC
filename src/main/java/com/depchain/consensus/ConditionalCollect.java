@@ -42,6 +42,12 @@ public class ConditionalCollect {
         this.quorumAbortMessages = new ArrayList<>();
     }
 
+    /**
+     * Handles a DECIDE message sent by another member.
+     * Adds the message to the quorum and checks if enough members have decided.
+     * 
+     * @param message The DECIDE message to handle
+     */
     public void handleDecideMessage(Message message) {
         Logger.log(Logger.MEMBER, "Received DECIDE message");
         Logger.log(Logger.MEMBER, "Current decide size: " + quorumDecideMessages.size() + " Quorum size: " + memberManager.getQuorumSize());
@@ -58,6 +64,12 @@ public class ConditionalCollect {
         }
     }
 
+    /**
+     * Handles an ABORT message sent by another member.
+     * Adds the message to the quorum and checks if enough members have aborted.
+     * 
+     * @param message The ABORT message to handle
+     */
     public void handleAbortMessage(Message message) {
         Logger.log(Logger.MEMBER, "Received ABORT message");
         Logger.log(Logger.MEMBER, "Current abort size: " + quorumAbortMessages.size() + " Quorum size: " + memberManager.getQuorumSize());
@@ -72,11 +84,24 @@ public class ConditionalCollect {
             epochConsensus.aborted();            
         }
     }
+
+    /**
+     * Sets the collected states from a serialized payload.
+     * Called when receiving a COLLECTED message from the leader.
+     * 
+     * @param payload The serialized payload containing collected states
+     */
     public void setCollected(String payload) {
         collected = parseCollectedPayload(payload);
         isCollected = true;
     }
 
+    /**
+     * Appends state data from another member to the collected map.
+     * Used when collecting states from all members.
+     * 
+     * @param statePayload The serialized state data to append
+     */
     public void appendState(String statePayload){
         Map<String, EpochState> state = parseCollectedPayload(statePayload);
 
@@ -89,11 +114,17 @@ public class ConditionalCollect {
         }
     }
 
+    /**
+     * Checks if the collected states have reached quorum.
+     * A quorum is reached when a certain number of members have the same state.
+     * 
+     * @param collected The map of collected states to check
+     * @return True if quorum is reached, false otherwise
+     */
     public boolean checkQuorum(Map<String, EpochState> collected) {
         Logger.log(Logger.CONDITIONAL_COLLECT, "Checking quorum with " + collected.size() + " entries");
         
-        // If we don't have enough entries, quorum can't be reached
-        if (collected.size() < (memberManager.getQuorumSize())) {  // -1 because the leader is not included in the count
+        if (collected.size() < (memberManager.getQuorumSize())) {
             Logger.log(Logger.CONDITIONAL_COLLECT, "Not enough entries for quorum: " + collected.size() + " < " + memberManager.getQuorumSize());
             return false;
         }
@@ -140,8 +171,14 @@ public class ConditionalCollect {
         return false;
     }
 
+    /**
+     * Checks if acknowledgments have reached a quorum.
+     * Used in both write and accept phases.
+     * 
+     * @param Acks The map of acknowledgments to check
+     * @return True if quorum is reached, false otherwise
+     */
     public boolean checkAckQuorum(Map<String, String> Acks) {
-        // If we don't have enough entries, quorum can't be reached
         if (Acks.size() < (memberManager.getQuorumSize() - 1)) { // - 1 because we count with ourself
             return false;
         }
@@ -171,6 +208,13 @@ public class ConditionalCollect {
         return false;
     }
     
+    /**
+     * Appends an acknowledgment from another member.
+     * Handles both WRITE and ACCEPT acknowledgments.
+     * 
+     * @param ackPayload The serialized acknowledgment payload
+     * @param ackType The type of acknowledgment (WRITE or ACCEPT)
+     */
     public void appendAck(String ackPayload, String ackType) {
         if (ackType.equals("ACCEPT")) {
             if (acceptAcked) { return; }
@@ -183,6 +227,12 @@ public class ConditionalCollect {
         }
     }
 
+    /**
+     * Parses an acknowledgment payload into a map.
+     * 
+     * @param ackPayload The serialized acknowledgment payload
+     * @return Map containing the parsed acknowledgments
+     */
     public Map<String, String> parseAck(String ackPayload) {
         Map<String, String> result = new HashMap<>();
         
@@ -214,6 +264,12 @@ public class ConditionalCollect {
         return result;
     }
 
+    /**
+     * Creates an acknowledgment payload for a given epoch state.
+     * 
+     * @param value The epoch state to acknowledge
+     * @return The formatted acknowledgment string
+     */
     public String createAck(EpochState value) {
         // Format as "membername: [value]"
         StringBuilder builder = new StringBuilder();
@@ -231,8 +287,9 @@ public class ConditionalCollect {
     
     /**
      * Inputs a message to the conditional collect primitive.
+     * Starts the state collection process.
      * 
-     * @param message The message to input
+     * @param message The message to input (epoch state)
      */
     public void input(EpochState message) {
         try {
@@ -269,6 +326,11 @@ public class ConditionalCollect {
 
     }
 
+    /**
+     * Waits for states to be collected from all members.
+     * If successful, initiates the consensus process.
+     * If timeout occurs, aborts the consensus.
+     */
     protected void waitForStates() {
         try {
             // Wait for all members to send their state
@@ -305,7 +367,10 @@ public class ConditionalCollect {
         }
     }
 
-
+    /**
+     * Processes the collected states to determine the consensus value.
+     * Identifies if a quorum exists for any value, or follows the leader's value.
+     */
     private void processCollected() {
         Logger.log(Logger.CONDITIONAL_COLLECT, "Processing collected message");
         
@@ -369,6 +434,12 @@ public class ConditionalCollect {
         }
     }
 
+    /**
+     * Initiates the consensus loop for a given epoch state.
+     * Validates the block and starts the write phase if valid.
+     * 
+     * @param value The epoch state to reach consensus on
+     */
     private void consensusLoop(EpochState value) {
         try {
             Block block = new Block();
@@ -397,6 +468,12 @@ public class ConditionalCollect {
         writeThread.start();
     }
     
+    /**
+     * Waits for write acknowledgments from members.
+     * If enough acks are received, proceeds to the accept phase.
+     * 
+     * @param value The epoch state that members are acknowledging
+     */
     private void waitForWrite(EpochState value) {
         try {
             // Wait for enough write acknowledgments (quorum)
@@ -432,6 +509,12 @@ public class ConditionalCollect {
         }
     }
     
+    /**
+     * Waits for accept acknowledgments from members.
+     * If enough acks are received, finalizes the consensus with decide messages.
+     * 
+     * @param value The epoch state that members are accepting
+     */
     private void waitForAccept(EpochState value) {
         try {
             // Wait for enough accept acknowledgments (quorum)
@@ -481,8 +564,11 @@ public class ConditionalCollect {
     }
 
     /**
-     * Creates a formatted string payload from the collected map
-     * @return String in format "key1: [timestamp, value1], key2: [timestamp2, value2], ..."
+     * Creates a formatted string payload from the collected map of epoch states.
+     * Used for transmitting state information between members.
+     * 
+     * @param collected The map of collected epoch states
+     * @return String representation in format "key1: [timestamp, value1], key2: [timestamp2, value2], ..."
      */
     private String createCollectedPayload(Map<String, EpochState> collected) {
         StringBuilder payload = new StringBuilder();
@@ -513,11 +599,12 @@ public class ConditionalCollect {
         return payload.toString();
     }
 
-
     /**
-     * Parses a formatted collected payload back into a HashMap
+     * Parses a formatted collected payload back into a HashMap of epoch states.
+     * Handles complex parsing of nested brackets and state values.
+     * 
      * @param payload String in format "key1: [timstamp1, value1], key2: [timestamp2, value2], ..."
-     * @return HashMap containing the parsed key-value pairs
+     * @return HashMap containing the parsed member-epochstate pairs
      */
     protected Map<String, EpochState> parseCollectedPayload(String payload) {
         Map<String, EpochState> collected = new HashMap<>();
@@ -581,6 +668,10 @@ public class ConditionalCollect {
         return collected;
     }
     
+    /**
+     * Aborts the current consensus process.
+     * Clears all collected data and notifies all members.
+     */
     protected void abort() {
         Logger.log(Logger.CONDITIONAL_COLLECT, "Aborting conditional collect");
         collected.clear();
