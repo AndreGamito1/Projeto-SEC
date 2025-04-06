@@ -141,7 +141,7 @@ public class ByzantineConditionalCollect extends ConditionalCollect {
         Logger.log(Logger.CONDITIONAL_COLLECT, "Checking quorum with " + collected.size() + " entries");
         
         // If we don't have enough entries, quorum can't be reached
-        if (collected.size() < (memberManager.getQuorumSize())) {  // -1 because the leader is not included in the count
+        if (collected.size() < (memberManager.getQuorumSize())) {
             Logger.log(Logger.CONDITIONAL_COLLECT, "Not enough entries for quorum: " + collected.size() + " < " + memberManager.getQuorumSize());
             return false;
         }
