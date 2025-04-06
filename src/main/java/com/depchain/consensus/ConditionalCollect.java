@@ -72,6 +72,7 @@ public class ConditionalCollect {
             epochConsensus.aborted();            
         }
     }
+    
     public void setCollected(String payload) {
         collected = parseCollectedPayload(payload);
         isCollected = true;
@@ -304,7 +305,6 @@ public class ConditionalCollect {
             Logger.log(Logger.CONDITIONAL_COLLECT, "Error collecting States, aborting: " + e.getMessage() + e.getStackTrace() + e.getCause());
         }
     }
-
 
     private void processCollected() {
         Logger.log(Logger.CONDITIONAL_COLLECT, "Processing collected message");
