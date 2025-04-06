@@ -405,21 +405,21 @@ public class ClientLibrary {
     }
 
     /**
- * Appends a string to the blockchain.
- * 
- * @param senderName     The sender's name (or address)
- * @param receiverName   The receiver's name (or address)
- * @param amount         The amount to send (for transactions or smart contracts)
- * @param senderSignature The signature of the sender
- * @return true if the request was sent, false otherwise
- * @throws Exception If sending fails
- */
-public boolean appendToBlockchain(String senderName, String receiverName, double amount, String senderSignature) throws Exception {
-    // 2. Prepare other Transaction fields
-    String transactionData = "";
-    String signature = senderSignature;
+     * Appends a string to the blockchain.
+     * 
+     * @param senderName     The sender's name (or address)
+     * @param receiverName   The receiver's name (or address)
+     * @param amount         The amount to send (for transactions or smart contracts)
+     * @param senderSignature The signature of the sender
+     * @return true if the request was sent, false otherwise
+     * @throws Exception If sending fails
+     */
+    public boolean appendToBlockchain(String senderName, String receiverName, double amount, String senderSignature) throws Exception {
+        // 2. Prepare other Transaction fields
+        String transactionData = "";
+        String signature = senderSignature;
 
-    if (isSmartContract(receiverName)) {
+        if (isSmartContract(receiverName)) {
             // Convert amount from double to BigInteger, since smart contracts work with integer values (Wei)
             BigInteger amountInWei = convertAmountToWei(amount);
 
@@ -482,8 +482,6 @@ public boolean appendToBlockchain(String senderName, String receiverName, double
         return weiValue.toBigInteger();
     }
 
-
-
     public static boolean isSmartContract(String address) {
         // Path to the genesis block JSON file
         String filePath = "src/main/resources/genesisBlock.json";
@@ -531,7 +529,6 @@ public boolean appendToBlockchain(String senderName, String receiverName, double
         }
     }
 
- 
     /**
      * Sends a message to the leader.
      * 
@@ -544,7 +541,6 @@ public boolean appendToBlockchain(String senderName, String receiverName, double
         Logger.log(Logger.CLIENT_LIBRARY, "Leader is " + memberManager.getLeaderName());
         memberManager.sendToMember(memberManager.getLeaderName(), payload, command);
     }
-
 
     /**
      * Main method to start a ClientLibrary instance with command-line parameters.
