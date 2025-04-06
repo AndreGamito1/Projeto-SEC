@@ -143,9 +143,8 @@ public class Client {
             writer.write(key);
         }
     }
-
-    
-/**
+  
+    /**
      * Sends the sender name, receiver name, and amount as JSON to the server.
      * 
      *
