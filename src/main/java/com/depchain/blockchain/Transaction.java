@@ -8,7 +8,6 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.Signature;
 import java.util.Base64;
 
 import com.depchain.utils.Encryption;
@@ -47,23 +46,6 @@ public class Transaction implements Serializable {
     public Transaction() {
     }
         
-    /**
-     * Calculates a hash of this transaction's data
-     * 
-     * @return A hash string for this transaction
-     */
-    public String calculateHash() {
-        // This is a placeholder - implement your actual hashing algorithm
-        String data = sender + receiver + Double.toString(amount);
-        
-        // Use a proper hashing algorithm in production (SHA-256, etc.)
-        // For example: return DigestUtils.sha256Hex(data);
-        return "hash_of_" + data.hashCode();
-    }
-
-
-     // --- Static Serialization / Deserialization Methods ---
-
     /**
      * Serializes the given Transaction object into a Base64 encoded String.
      *
