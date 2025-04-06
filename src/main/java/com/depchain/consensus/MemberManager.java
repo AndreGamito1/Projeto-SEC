@@ -49,10 +49,8 @@ public class MemberManager {
         keyManager.getPrivateKey(this.name));
     }
 
-
-
     public void setupMemberLinks() throws Exception {
-        members = JsonToList(); // So vai ter os membros
+        members = JsonToList();
         System.out.println("Members: " + members);
         int currentLocalPort = clientLibraryPort;
         // Set up links to each member
@@ -171,7 +169,6 @@ public class MemberManager {
     public Map<String, Integer> getMemberPorts() {
         return memberPorts;
     }
-
 
     public int getClientLibraryPort() {
         return clientLibraryPort;
