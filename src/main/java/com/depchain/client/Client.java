@@ -66,10 +66,14 @@ public class Client {
         System.out.println("Connected to blockchain REST API at: " + baseUrl);
     }
  
+    /**
+     * Loads the client's public and private keys from a JSON file.
+     * If the keys do not exist, they are generated and saved to the specified paths.
+     */
     public void loadClientKeys() {
         try {
             // Load the JSON file
-            String jsonFilePath = "src/main/resources/accounts.json"; // Updated to match the correct file name
+            String jsonFilePath = "src/main/resources/accounts.json"; 
             String jsonContent = new String(Files.readAllBytes(Paths.get(jsonFilePath)));
             JSONObject json = new JSONObject(jsonContent);
             JSONArray clients = json.getJSONArray("clients");
@@ -115,6 +119,12 @@ public class Client {
         }
     }
     
+    /**
+     * Generates a new RSA key pair and saves them to the specified file paths.
+     * 
+     * @param publicKeyPath Path to save the public key
+     * @param privateKeyPath Path to save the private key
+     */
     private void generateKeyPair(String publicKeyPath, String privateKeyPath) {
         try {
             // Generate RSA key pair
@@ -136,6 +146,13 @@ public class Client {
         }
     }
 
+    /**
+     * Saves a key to a file.
+     * 
+     * @param key The key to save
+     * @param filePath The path to the file
+     * @throws IOException If file writing fails
+     */
     private void saveKeyToFile(String key, String filePath) throws IOException {
         File file = new File(filePath);
         file.getParentFile().mkdirs(); // Ensure directory exists
@@ -184,13 +201,13 @@ public class Client {
 
         // 2. Create JSON Payload
         JSONObject requestBody = new JSONObject();
-        requestBody.put("senderName", this.clientId);      // Sender is the client ID 
-        requestBody.put("receiverName", receiverName);     // Receiver from parameter
-        requestBody.put("amount", amountValue);            // Amount from parameter (parsed)
-        requestBody.put("signature", signature);           // Signature of the transaction
+        requestBody.put("senderName", this.clientId);      
+        requestBody.put("receiverName", receiverName);    
+        requestBody.put("amount", amountValue);            
+        requestBody.put("signature", signature);          
 
         String jsonPayload = requestBody.toString();
-        System.out.println("Sending request: " + jsonPayload); // Log what's being sent
+        System.out.println("Sending request!"); 
 
         // 3. Build HTTP Request
         try {
@@ -206,7 +223,7 @@ public class Client {
             // 5. Check Response Status
             int statusCode = response.statusCode();
             System.out.println("Received Status Code: " + statusCode);
-            System.out.println("Received Response Body: " + response.body()); // Log response body
+            System.out.println("Received Response Body: " + response.body()); 
 
             if (statusCode >= 200 && statusCode < 300) {
                 System.out.println("Request successful (Status code " + statusCode + ").");
@@ -217,19 +234,16 @@ public class Client {
             }
 
         } catch (IOException | InterruptedException e) {
-            // Handle network errors or if the sending thread is interrupted
             System.err.println("Error sending request: " + e.getMessage());
              if (e instanceof InterruptedException) {
                  Thread.currentThread().interrupt(); 
              }
             return false;
         } catch (IllegalArgumentException e) {
-            // Handle errors like invalid URI format from baseUrl
             System.err.println("Error building request (check URL?): " + e.getMessage());
             return false;
         }
          catch (Exception e) {
-            // Catch-all for any other unexpected errors during the process
             System.err.println("An unexpected error occurred: " + e.getMessage());
             e.printStackTrace();
             return false;
@@ -254,8 +268,8 @@ public class Client {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + "/blockchain/get"))
-                    .header("Signature", signature) // Adding signature to headers
-                    .header("ClientName", clientId)  // Add client ID in header
+                    .header("Signature", signature) 
+                    .header("ClientName", clientId)  
                     .GET()
                     .build();
 

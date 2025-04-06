@@ -33,9 +33,7 @@ import org.web3j.abi.datatypes.Address;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+
 
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpExchange;
@@ -115,7 +113,7 @@ public class ClientLibrary {
             while (true) {
                 try {
                     waitForMessages();
-                    Thread.sleep(100); // Short sleep to prevent CPU hogging
+                    Thread.sleep(100); 
                 } catch (Exception e) {
                     Logger.log(Logger.CLIENT_LIBRARY, "Error in message thread: " + e.getMessage());
                 }
@@ -415,22 +413,21 @@ public class ClientLibrary {
  * @throws Exception If sending fails
  */
 public boolean appendToBlockchain(String senderName, String receiverName, double amount, String senderSignature) throws Exception {
-    // 2. Prepare other Transaction fields
     String transactionData = "";
     String signature = senderSignature;
 
     if (isSmartContract(receiverName)) {
-            // Convert amount from double to BigInteger, since smart contracts work with integer values (Wei)
+            /*Not implemented*/
             BigInteger amountInWei = convertAmountToWei(amount);
 
             // Prepare the method call parameters for the smart contract transfer
             String methodName = "transfer";
             List<Type> inputParameters = Arrays.asList(
-                new Address(receiverName), // Receiver address
-                new Uint256(amountInWei)    // Amount in Wei
+                new Address(receiverName),
+                new Uint256(amountInWei)    
             );
 
-            // Encode the function call (this is your transaction data)
+            // Encode the function call
             Function function = new Function(methodName, inputParameters, Collections.emptyList());
             transactionData = FunctionEncoder.encode(function);  // This is your tx.data
         } else {
@@ -438,7 +435,6 @@ public boolean appendToBlockchain(String senderName, String receiverName, double
             transactionData = "Transaction from " + senderName + " to " + receiverName + " for amount: " + amount;
         }
 
-        // 3. Create the Transaction Object
         Transaction transaction = new Transaction(
                 senderName,
                 receiverName,
@@ -447,7 +443,6 @@ public boolean appendToBlockchain(String senderName, String receiverName, double
                 signature
         );
 
-        // 4. Serialize the Transaction to send
         String serializedTransaction;
         try {
             serializedTransaction = Transaction.serializeToString(transaction);
@@ -459,7 +454,6 @@ public boolean appendToBlockchain(String senderName, String receiverName, double
             throw new Exception("Serialization failed", e);
         }
 
-        // 5. Send the *serialized transaction* to the leader
         try {
             sendToLeader(serializedTransaction, "TRANSACTION");
             Logger.log(Logger.CLIENT_LIBRARY, "Sent PROPOSE request for transaction.");
@@ -476,27 +470,27 @@ public boolean appendToBlockchain(String senderName, String receiverName, double
      * @return The amount in Wei (BigInteger).
      */
     private BigInteger convertAmountToWei(double amount) {
-        // Since Ether has 18 decimals, multiply the amount by 10^18
         BigDecimal etherValue = BigDecimal.valueOf(amount);
         BigDecimal weiValue = etherValue.multiply(BigDecimal.valueOf(1_000_000_000_000_000_000L));
         return weiValue.toBigInteger();
     }
 
 
-
+    /**
+     * Checks if the given address is a smart contract.
+     * 
+     * @param address The address to check
+     * @return true if the address is a smart contract, false otherwise
+     */
     public static boolean isSmartContract(String address) {
-        // Path to the genesis block JSON file
         String filePath = "src/main/resources/genesisBlock.json";
 
         try {
-            // Read the JSON content from the file
             String genesisBlockJson = new String(Files.readAllBytes(Paths.get(filePath)));
 
-            // Parse the JSON
             JSONObject genesisBlock = new JSONObject(genesisBlockJson);
             JSONObject state = genesisBlock.getJSONObject("state");
 
-            // Check if the given address exists and has a "code" field (indicating it's a smart contract)
             if (state.has(address)) {
                 JSONObject account = state.getJSONObject(address);
                 return account.has("code") && !account.isNull("code");
@@ -505,10 +499,17 @@ public boolean appendToBlockchain(String senderName, String receiverName, double
             e.printStackTrace();
         }
 
-        return false; // Address doesn't exist or isn't a smart contract
+        return false; 
     }
 
-  
+    /**
+     * Checks the balance of a given address.
+     * 
+     * @param senderId The ID of the sender
+     * @param signature The signature to verify
+     * @return true if the request was sent, false otherwise
+     * @throws Exception If sending fails
+     */
     public boolean checkBalance(String senderId, String signature) throws Exception {
     
         // Create a JSON object with the required data
