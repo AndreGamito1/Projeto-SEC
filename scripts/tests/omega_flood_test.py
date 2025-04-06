@@ -13,22 +13,30 @@ PRIV_KEYS_DIR = os.path.join(PROJECT_ROOT, "src/main/resources/priv_keys")
 PUB_KEYS_DIR = os.path.join(PROJECT_ROOT, "src/main/resources/pub_keys")
 BLOCKS_DIR = os.path.join(PROJECT_ROOT, "src/main/resources/blocks")
 
-# --- Member Omission Test ---
-# Define valid transaction
-TRANSACTION = {"receiver": "jiraiya", "amount": "25"}
+# --- Omega Transaction Flooding Test ---
+# Define a mega batch of 100 transactions to send rapidly
+TRANSACTIONS = []
+for i in range(1, 20):
+    TRANSACTIONS.append({"receiver": "Miguel", "amount": "1"})
+
+# --- Expected Results ---
+TRANSACTIONS_PER_BLOCK = 3
+EXPECTED_FULL_BLOCKS = 33  # 33 blocks with 3 txs each = 99 txs
+EXPECTED_PARTIAL_BLOCKS = 1  # 1 block with 1 tx
+EXPECTED_BLOCK_COUNT = EXPECTED_FULL_BLOCKS + EXPECTED_PARTIAL_BLOCKS  # 34 total blocks
 
 # --- Timing ---
 MEMBER_START_DELAY = 1
-CLIENT_LIB_STARTUP_DELAY = 3
-CLIENT_INTERACTION_DELAY = 0.2
-CLIENT_WINDOW_LOAD_DELAY = 0.5
-CONSENSUS_WAIT_SECONDS = 30
-STABILIZATION_WAIT_SECONDS = 5
-CHECKING_MAX_WAIT_SECONDS = 60
+CLIENT_LIB_STARTUP_DELAY = 5
+CLIENT_INTERACTION_DELAY = 0.05  # Even shorter delay for extreme flooding
+CLIENT_WINDOW_LOAD_DELAY = 0.2
+BATCH_WAIT_SECONDS = 2  # Shorter wait between transaction batches
+CONSENSUS_WAIT_SECONDS = 120  # Longer wait for many blocks to be created
+POLLING_INTERVAL_SECONDS = 15  # Check progress periodically
+MAX_WAIT_SECONDS = 180  # Maximum wait time
 
 # --- Process Management ---
 process_ids = []
-member_processes = {}  # To track member processes specifically
 
 def run_powershell_command(command):
     """Run a PowerShell command and return its output."""
@@ -109,42 +117,7 @@ def start_members():
                 member_name = parts[0]
                 pid = int(parts[1])
                 process_ids.append(pid)
-                member_processes[member_name] = pid
                 print(f"Started member {member_name} with PID: {pid}")
-
-def terminate_member(member_name):
-    """Terminate a specific member process."""
-    if member_name not in member_processes:
-        print(f"Warning: Member {member_name} not found in process list")
-        return False
-    
-    pid = member_processes[member_name]
-    print(f"Terminating member {member_name} (PID: {pid})...")
-    
-    try:
-        process = psutil.Process(pid)
-        # Terminate the process and all its children
-        for child in process.children(recursive=True):
-            try:
-                child.terminate()
-            except:
-                pass
-        process.terminate()
-        print(f"  Successfully terminated {member_name} (PID: {pid})")
-        
-        # Also use PowerShell to ensure termination
-        cmd = f"""
-        Stop-Process -Id {pid} -Force -ErrorAction SilentlyContinue
-        """
-        run_powershell_command(cmd)
-        
-        return True
-    except psutil.NoSuchProcess:
-        print(f"  Process with PID {pid} already terminated")
-        return True
-    except Exception as e:
-        print(f"  Error terminating process with PID {pid}: {e}")
-        return False
 
 def start_client_library():
     """Start the client library."""
@@ -240,18 +213,6 @@ def activate_window_by_pid(pid):
 
 def send_transaction(client_pid, client_title, transaction):
     """Send a transaction to the client window using PyAutoGUI."""
-    # First try focusing by PID
-    activated = activate_window_by_pid(client_pid)
-    if not activated:
-        # Try focusing by window title
-        activated = focus_window_by_title(client_title)
-    
-    if not activated:
-        print(f"Warning: Could not focus client window. Attempting inputs anyway...")
-    
-    # Allow window to gain focus
-    time.sleep(CLIENT_WINDOW_LOAD_DELAY)
-    
     # Send transaction command
     pyautogui.typewrite("1")
     pyautogui.press("enter")
@@ -280,100 +241,102 @@ def exit_client(client_pid, client_title):
     pyautogui.typewrite("0")
     pyautogui.press("enter")
 
-def check_blocks_created(expected_count=1):
-    """Verify that the expected number of blocks were created."""
+def check_blocks_created(min_expected_count=EXPECTED_BLOCK_COUNT):
+    """Verify that at least the expected number of blocks were created."""
     blocks = get_block_files()
     print(f"Checking for block files...")
     print(f"  Found block files: {blocks}")
     
-    if len(blocks) >= expected_count:
-        print(f"  PASS: Found {len(blocks)} block(s), expected at least {expected_count}")
+    if len(blocks) >= min_expected_count:
+        print(f"  PASS: Found {len(blocks)} block(s), expected at least {min_expected_count}")
         return True
     else:
-        print(f"  FAIL: Found only {len(blocks)} block(s), expected at least {expected_count}")
+        print(f"  PARTIAL: Found {len(blocks)} block(s), expecting at least {min_expected_count}")
         return False
 
-def check_latest_block_for_transaction():
-    """Check the latest block to verify it contains our transaction in the expected format."""
+def check_blocks_transaction_distribution():
+    """Check if the blocks have the expected distribution of transactions."""
     blocks = get_block_files()
     
     if not blocks:
         print("No block files found.")
         return False
     
-    # Sort the blocks by their number (extract the number from "blockX.json")
+    # Sort the blocks by their number
     sorted_blocks = sorted(blocks, key=lambda x: int(x.replace("block", "").replace(".json", "")))
-    latest_block = sorted_blocks[-1]
-    latest_block_path = os.path.join(BLOCKS_DIR, latest_block)
     
-    print(f"Checking latest block: {latest_block}")
+    # Use PowerShell to check each block
+    blocks_analysis = []
     
-    # Use PowerShell to read and parse the block file
-    cmd = f"""
-    $blockContent = Get-Content -Path "{latest_block_path}" -Raw
-    $block = $blockContent | ConvertFrom-Json
+    for block_file in sorted_blocks:
+        block_path = os.path.join(BLOCKS_DIR, block_file)
+        
+        cmd = f"""
+        $blockContent = Get-Content -Path "{block_path}" -Raw
+        $block = $blockContent | ConvertFrom-Json
+        
+        # Check transaction count
+        $transactionCount = 0
+        if ($block.PSObject.Properties.Name -contains "transactions") {{
+            $transactionCount = $block.transactions.Count
+        }}
+        
+        Write-Output "$transactionCount"
+        """
+        
+        stdout, _, _ = run_powershell_command(cmd)
+        try:
+            tx_count = int(stdout.strip())
+            blocks_analysis.append({"block": block_file, "tx_count": tx_count})
+        except:
+            print(f"  Error parsing transaction count for {block_file}")
+            blocks_analysis.append({"block": block_file, "tx_count": 0})
     
-    # Check for block hash fields
-    if (-not ($block.PSObject.Properties.Name -contains "block_hash" -and 
-              $block.PSObject.Properties.Name -contains "previous_block_hash")) {{
-        Write-Output "FAIL: Missing required hash fields"
-        return
-    }}
+    # Print the block distribution
+    print("\nTransaction distribution across blocks:")
+    full_blocks = 0
+    partial_blocks = 0
     
-    # Check for transactions
-    if (-not ($block.PSObject.Properties.Name -contains "transactions")) {{
-        Write-Output "FAIL: Missing transactions array"
-        return
-    }}
+    for block_info in blocks_analysis:
+        if block_info['tx_count'] == TRANSACTIONS_PER_BLOCK:
+            full_blocks += 1
+            block_type = "FULL"
+        elif block_info['tx_count'] > 0:
+            partial_blocks += 1
+            block_type = "PARTIAL"
+        else:
+            block_type = "EMPTY"
+        
+        print(f"  {block_info['block']}: {block_info['tx_count']} transactions ({block_type})")
     
-    # Check transaction count
-    $transactions = $block.transactions
-    $transactionCount = $transactions.Count
-    Write-Output "Transaction count: $transactionCount"
+    # Check the total number of transactions across all blocks
+    total_tx = sum(b['tx_count'] for b in blocks_analysis)
     
-    if ($transactionCount -lt 1) {{
-        Write-Output "FAIL: Expected at least 1 transaction, found $transactionCount"
-        return
-    }}
+    print(f"\nFull blocks (with {TRANSACTIONS_PER_BLOCK} transactions): {full_blocks}")
+    print(f"Partial blocks: {partial_blocks}")
+    print(f"Total transactions processed: {total_tx}/{len(TRANSACTIONS)}")
     
-    # Check transaction details
-    $tx = $transactions[$transactions.Count - 1]  # Get the last transaction
+    # Success criteria
+    expected_total_blocks = EXPECTED_FULL_BLOCKS + EXPECTED_PARTIAL_BLOCKS
+    expected_tx = EXPECTED_FULL_BLOCKS * TRANSACTIONS_PER_BLOCK + EXPECTED_PARTIAL_BLOCKS
     
-    $tx_valid = $tx.sender -eq "client1" -and $tx.receiver -eq "{TRANSACTION['receiver']}" -and [math]::Abs($tx.amount - {TRANSACTION['amount']}) -lt 1
+    print(f"\nExpected distribution: {EXPECTED_FULL_BLOCKS} full blocks + {EXPECTED_PARTIAL_BLOCKS} block with 1 tx = {expected_total_blocks} total blocks")
+    print(f"Expected transactions: {expected_tx}")
     
-    Write-Output "Transaction: sender=$($tx.sender), receiver=$($tx.receiver), amount=$($tx.amount) - Valid: $tx_valid"
-    
-    # Check for state
-    if (-not ($block.PSObject.Properties.Name -contains "state")) {{
-        Write-Output "FAIL: Missing state object"
-        return
-    }}
-    
-    # Check state entries count (should have at least some entries)
-    $stateKeys = $block.state.PSObject.Properties.Name
-    $stateCount = $stateKeys.Count
-    Write-Output "State entries: $stateCount"
-    
-    if ($stateCount -lt 3) {{
-        Write-Output "FAIL: Expected at least 3 state entries"
-        return
-    }}
-    
-    # Overall validation
-    if ($tx_valid -and $stateCount -ge 3) {{
-        Write-Output "SUCCESS: Block structure matches expected format"
-    }} else {{
-        Write-Output "FAIL: Block structure does not match expected format"
-    }}
-    """
-    
-    stdout, _, _ = run_powershell_command(cmd)
-    print(f"Block content analysis:")
-    for line in stdout.splitlines():
-        if line.strip():
-            print(f"  {line.strip()}")
-    
-    return "SUCCESS" in stdout
+    # Check if we meet minimum success criteria: all transactions are accounted for
+    if total_tx == len(TRANSACTIONS):
+        print("\nPASS: All transactions were processed across blocks")
+        
+        # Check if distribution matches exactly what we expect
+        if full_blocks == EXPECTED_FULL_BLOCKS and partial_blocks == EXPECTED_PARTIAL_BLOCKS:
+            print(f"PERFECT: Distribution exactly matches expected pattern ({EXPECTED_FULL_BLOCKS} full + {EXPECTED_PARTIAL_BLOCKS} partial)")
+        else:
+            print(f"ACCEPTABLE: All transactions processed, but distribution differs from expected pattern")
+        
+        return True
+    else:
+        print(f"\nFAIL: Not all transactions were processed correctly. Found {total_tx}/{len(TRANSACTIONS)}")
+        return False
 
 def terminate_all_processes():
     """Terminate all processes started by this script."""
@@ -423,7 +386,7 @@ if __name__ == "__main__":
             print("Libraries installed successfully.")
         
         # Set pyautogui pause between actions
-        pyautogui.PAUSE = 0.1
+        pyautogui.PAUSE = 0.03  # Extremely short pause for maximum speed
         
         # Clean directories (including blocks directory)
         clean_directories()
@@ -450,42 +413,93 @@ if __name__ == "__main__":
         print("Waiting for client to initialize...")
         time.sleep(3)
         
-        # Terminate member4 (omission test)
-        print("\n=== OMISSION TEST ===")
-        print("Now terminating member4 to simulate node failure...")
-        member_terminated = terminate_member("member4")
+        # Focus the client window once before sending all transactions
+        print("\nFocusing client window...")
+        activated = activate_window_by_pid(client_pid)
+        if not activated:
+            activated = focus_window_by_title(client_title)
         
-        if not member_terminated:
-            print("WARNING: Could not terminate member4, test may not be valid")
+        if not activated:
+            print("WARNING: Could not focus client window. Attempting inputs anyway...")
+        time.sleep(CLIENT_WINDOW_LOAD_DELAY)
         
-        print(f"Waiting {STABILIZATION_WAIT_SECONDS}s for network to stabilize after member omission...")
-        time.sleep(STABILIZATION_WAIT_SECONDS)
-        
-        # Send the transaction
-        print("\nSending transaction after member omission:")
-        print(f"Transaction details: receiver={TRANSACTION['receiver']}, amount={TRANSACTION['amount']}")
+        # Send the 100 transactions in batches
+        print("\n=== OMEGA TRANSACTION FLOODING TEST ===")
+        print(f"Sending {len(TRANSACTIONS)} transactions in rapid succession...")
         start_time = time.time()
         
-        send_transaction(client_pid, client_title, TRANSACTION)
+        # Use larger batch size for speed
+        BATCH_SIZE = 10
         
-        elapsed_time = time.time() - start_time
-        print(f"Transaction sent in {elapsed_time:.2f} seconds")
+        # Send transactions in batches with small delays between batches
+        for i in range(0, len(TRANSACTIONS), BATCH_SIZE):
+            batch = TRANSACTIONS[i:i+BATCH_SIZE]
+            batch_num = i // BATCH_SIZE + 1
+            total_batches = (len(TRANSACTIONS) + BATCH_SIZE - 1) // BATCH_SIZE
+            
+            print(f"\nSending batch {batch_num}/{total_batches} (transactions {i+1}-{min(i+BATCH_SIZE, len(TRANSACTIONS))}):")
+            
+            batch_start_time = time.time()
+            for j, transaction in enumerate(batch):
+                tx_num = i + j + 1
+                # Print less frequently to avoid slowing down the console
+                if tx_num % 10 == 0 or tx_num == 1 or tx_num == len(TRANSACTIONS):
+                    print(f"  Transaction {tx_num}/{len(TRANSACTIONS)}: {transaction['receiver']}, Amount: {transaction['amount']}")
+                send_transaction(client_pid, client_title, transaction)
+            
+            batch_elapsed = time.time() - batch_start_time
+            print(f"  Batch sent in {batch_elapsed:.2f} seconds")
+            
+            # Wait briefly between batches to allow some processing
+            if i + BATCH_SIZE < len(TRANSACTIONS):
+                print(f"  Waiting {BATCH_WAIT_SECONDS}s between batches...")
+                time.sleep(BATCH_WAIT_SECONDS)
         
-        # Send exit command
+        # Send exit command after all transactions
         exit_client(client_pid, client_title)
         
-        # Wait for consensus process
-        print(f"\nWaiting {CONSENSUS_WAIT_SECONDS}s for consensus process...")
-        time.sleep(CONSENSUS_WAIT_SECONDS)
-        print("Consensus wait finished.")
+        total_elapsed_time = time.time() - start_time
+        print(f"\nAll {len(TRANSACTIONS)} transactions sent in {total_elapsed_time:.2f} seconds")
+        print(f"Average rate: {len(TRANSACTIONS) / total_elapsed_time:.2f} transactions per second")
         
-        # Verify blocks were created
-        test_passed = check_blocks_created(expected_count=1)
+        # Wait for consensus process to complete for all blocks with periodic checks
+        print(f"\nWaiting up to {MAX_WAIT_SECONDS}s for consensus on all transactions...")
+        wait_start_time = time.time()
+        blocks_test_passed = False
         
-        # Check transaction details in the block
-        if test_passed:
-            transaction_check = check_latest_block_for_transaction()
-            test_passed = test_passed and transaction_check
+        while True:
+            elapsed_wait_time = time.time() - wait_start_time
+            if elapsed_wait_time > MAX_WAIT_SECONDS:
+                print(f"Maximum wait time of {MAX_WAIT_SECONDS}s exceeded.")
+                break
+            
+            # Check current block count
+            current_blocks = get_block_files()
+            total_expected_blocks = EXPECTED_FULL_BLOCKS + EXPECTED_PARTIAL_BLOCKS
+            
+            print(f"\nProgress check after {elapsed_wait_time:.0f}s:")
+            print(f"  Blocks created: {len(current_blocks)}/{total_expected_blocks}")
+            
+            if len(current_blocks) >= total_expected_blocks:
+                print("  All expected blocks have been created!")
+                blocks_test_passed = True
+                break
+            else:
+                remaining_wait = MAX_WAIT_SECONDS - elapsed_wait_time
+                print(f"  Continuing to wait (remaining: {remaining_wait:.0f}s)")
+                time.sleep(POLLING_INTERVAL_SECONDS)
+        
+        print("\nConsensus wait finished.")
+        
+        # Final checks for correct block count
+        if not blocks_test_passed:
+            blocks_test_passed = check_blocks_created()
+        
+        # Check transaction distribution across blocks
+        distribution_test_passed = check_blocks_transaction_distribution()
+        
+        # Final test result
+        test_passed = blocks_test_passed and distribution_test_passed
         
     except KeyboardInterrupt:
         print("\nTest interrupted by user.")
@@ -494,18 +508,17 @@ if __name__ == "__main__":
         print(f"\nAn unexpected error occurred during test execution: {e}")
         import traceback
         traceback.print_exc()
+
         test_passed = False
     finally:
-        # Terminate all processes
-        terminate_all_processes()
-        
+
         # Final Result
         print("\n----- Test Summary -----")
         if test_passed:
-            print("RESULT: PASSED - Transaction was successfully processed despite member omission")
-            print("The blockchain correctly handled the absence of one member (n=4, f=1).")
+            print(f"RESULT: PASSED - All {len(TRANSACTIONS)} transactions were correctly processed")
+            print(f"The blockchain successfully created {EXPECTED_FULL_BLOCKS} full blocks and {EXPECTED_PARTIAL_BLOCKS} partial block")
             sys.exit(0)
         else:
-            print("RESULT: FAILED - Transaction was not processed as expected after member omission")
+            print("RESULT: FAILED - Transactions were not processed as expected")
             print("Check the logs above for details on what went wrong.")
             sys.exit(1)

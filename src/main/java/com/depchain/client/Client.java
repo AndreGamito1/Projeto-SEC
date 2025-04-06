@@ -95,7 +95,7 @@ public class Client {
                     if (!publicKeyFile.exists() || !privateKeyFile.exists()) {
                         generateKeyPair(publicKeyPath, privateKeyPath);
                     }
-    
+                    Thread.sleep(5000); // Wait for the keys to be generated and saved
                     this.publicKey = KeyManager.loadPublicKeyFromFile(publicKeyPath);
                     this.privateKey = KeyManager.loadPrivateKeyFromFile(privateKeyPath);
                     break;

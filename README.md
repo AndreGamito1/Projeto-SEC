@@ -11,21 +11,23 @@ You can start the demo using either the provided PowerShell script (Windows) or 
 ### Windows (PowerShell)
 
 ```powershell
-.\Start-BlockchainSystem.ps1
+.\scripts\run.ps1
 ```
 
 ### Linux/macOS (Bash)
 
 ```bash
-chmod +x run.sh
+chmod +x /scripts/run.sh
 
-./run.sh
+./scripts/run.sh
 ```
 
 ## Test Scripts
 
 ```bash
-# TODO Talk about tests scripts 
+python ./scripts/tests/{script_name}.py
+
+# available tests: 3_member_down_test, member_down_test, no_man_test, yes_man_test, transaction_flooding_test
 ```
 
 ## Manual Startup

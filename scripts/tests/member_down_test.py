@@ -13,26 +13,22 @@ PRIV_KEYS_DIR = os.path.join(PROJECT_ROOT, "src/main/resources/priv_keys")
 PUB_KEYS_DIR = os.path.join(PROJECT_ROOT, "src/main/resources/pub_keys")
 BLOCKS_DIR = os.path.join(PROJECT_ROOT, "src/main/resources/blocks")
 
-# --- Valid Transaction Test with NO_MAN ---
-# Define valid transactions
-TRANSACTIONS = [
-    {"receiver": "jiraiya", "amount": "10"},
-    {"receiver": "jiraiya", "amount": "20"},
-    {"receiver": "jiraiya", "amount": "30"}
-]
+# --- Member Omission Test ---
+# Define valid transaction
+TRANSACTION = {"receiver": "Miguel", "amount": "25"}
 
 # --- Timing ---
 MEMBER_START_DELAY = 1
-CLIENT_LIB_STARTUP_DELAY = 3
-CLIENT_INTERACTION_DELAY = 1
-CLIENT_WINDOW_LOAD_DELAY = 2
+CLIENT_LIB_STARTUP_DELAY = 5
+CLIENT_INTERACTION_DELAY = 0.2
+CLIENT_WINDOW_LOAD_DELAY = 0.5
 CONSENSUS_WAIT_SECONDS = 30
-TRANSACTION_WAIT_SECONDS = 10  # Time to wait between transactions
-CHECKING_POLL_INTERVAL_SECONDS = 5
+STABILIZATION_WAIT_SECONDS = 5
 CHECKING_MAX_WAIT_SECONDS = 60
 
 # --- Process Management ---
 process_ids = []
+member_processes = {}  # To track member processes specifically
 
 def run_powershell_command(command):
     """Run a PowerShell command and return its output."""
@@ -84,39 +80,71 @@ def get_block_files():
     return files
 
 def start_members():
-    """Start the blockchain members with one Byzantine NO_MAN."""
+    """Start the blockchain members (all normal)."""
     print("Starting members...")
     
     # Define member configurations
     members_cmd = """
-    # Array of member configurations (name, behavior)
+    # Array of member configurations
     $members = @(
         @{name="member1"; behavior="default"},
         @{name="member2"; behavior="default"},
         @{name="member3"; behavior="default"},
-        @{name="member4"; behavior="NO_MAN"}  # Byzantine NoMan behavior
+        @{name="member4"; behavior="default"}
     )
     
     # Start each member in a new terminal
     foreach ($member in $members) {
-        if ($member.behavior -eq "default") {
-            # Start a normal member
-            $process = Start-Process cmd.exe -ArgumentList "/K title $($member.name) && mvn exec:java -Dexec.mainClass=com.depchain.consensus.Main -Dexec.args=`"$($member.name)`"" -PassThru
-            Write-Output $process.Id
-        } else {
-            # Start a Byzantine member with behavior
-            $process = Start-Process cmd.exe -ArgumentList "/K title $($member.name)-$($member.behavior) && mvn exec:java -Dexec.mainClass=com.depchain.consensus.Main -Dexec.args=`"$($member.name) $($member.behavior)`"" -PassThru
-            Write-Output $process.Id
-        }
+        $process = Start-Process cmd.exe -ArgumentList "/K title $($member.name) && mvn exec:java -Dexec.mainClass=com.depchain.consensus.Main -Dexec.args=`"$($member.name)`"" -PassThru
+        Write-Output "$($member.name):$($process.Id)"
         Start-Sleep -Seconds 1
     }
     """
     
     stdout, _, _ = run_powershell_command(members_cmd)
     for line in stdout.splitlines():
-        if line.strip() and line.strip().isdigit():
-            process_ids.append(int(line.strip()))
-            print(f"Started member process with PID: {line.strip()}")
+        if line.strip() and ":" in line:
+            parts = line.strip().split(":")
+            if len(parts) == 2 and parts[1].isdigit():
+                member_name = parts[0]
+                pid = int(parts[1])
+                process_ids.append(pid)
+                member_processes[member_name] = pid
+                print(f"Started member {member_name} with PID: {pid}")
+
+def terminate_member(member_name):
+    """Terminate a specific member process."""
+    if member_name not in member_processes:
+        print(f"Warning: Member {member_name} not found in process list")
+        return False
+    
+    pid = member_processes[member_name]
+    print(f"Terminating member {member_name} (PID: {pid})...")
+    
+    try:
+        process = psutil.Process(pid)
+        # Terminate the process and all its children
+        for child in process.children(recursive=True):
+            try:
+                child.terminate()
+            except:
+                pass
+        process.terminate()
+        print(f"  Successfully terminated {member_name} (PID: {pid})")
+        
+        # Also use PowerShell to ensure termination
+        cmd = f"""
+        Stop-Process -Id {pid} -Force -ErrorAction SilentlyContinue
+        """
+        run_powershell_command(cmd)
+        
+        return True
+    except psutil.NoSuchProcess:
+        print(f"  Process with PID {pid} already terminated")
+        return True
+    except Exception as e:
+        print(f"  Error terminating process with PID {pid}: {e}")
+        return False
 
 def start_client_library():
     """Start the client library."""
@@ -221,7 +249,8 @@ def send_transaction(client_pid, client_title, transaction):
     if not activated:
         print(f"Warning: Could not focus client window. Attempting inputs anyway...")
     
-
+    # Allow window to gain focus
+    time.sleep(CLIENT_WINDOW_LOAD_DELAY)
     
     # Send transaction command
     pyautogui.typewrite("1")
@@ -264,8 +293,8 @@ def check_blocks_created(expected_count=1):
         print(f"  FAIL: Found only {len(blocks)} block(s), expected at least {expected_count}")
         return False
 
-def check_latest_block_for_transactions():
-    """Check the latest block to verify it contains our transactions in the expected format."""
+def check_latest_block_for_transaction():
+    """Check the latest block to verify it contains our transaction in the expected format."""
     blocks = get_block_files()
     
     if not blocks:
@@ -278,18 +307,6 @@ def check_latest_block_for_transactions():
     latest_block_path = os.path.join(BLOCKS_DIR, latest_block)
     
     print(f"Checking latest block: {latest_block}")
-    
-    # Expected structure based on the sample
-    expected_block_structure = {
-        "transactions": [
-            {"sender": "client1", "receiver": "jiraiya", "amount": 10.0},
-            {"sender": "client1", "receiver": "jiraiya", "amount": 20.0},
-            {"sender": "client1", "receiver": "jiraiya", "amount": 30.0}
-        ],
-        "state": {
-            # State is checked for existence but not specific values
-        }
-    }
     
     # Use PowerShell to read and parse the block file
     cmd = f"""
@@ -314,23 +331,17 @@ def check_latest_block_for_transactions():
     $transactionCount = $transactions.Count
     Write-Output "Transaction count: $transactionCount"
     
-    if ($transactionCount -ne 3) {{
-        Write-Output "FAIL: Expected 3 transactions, found $transactionCount"
+    if ($transactionCount -lt 1) {{
+        Write-Output "FAIL: Expected at least 1 transaction, found $transactionCount"
         return
     }}
     
     # Check transaction details
-    $tx1 = $transactions[0]
-    $tx2 = $transactions[1]
-    $tx3 = $transactions[2]
+    $tx = $transactions[$transactions.Count - 1]  # Get the last transaction
     
-    $tx1_valid = $tx1.sender -eq "client1" -and $tx1.receiver -eq "jiraiya" -and [math]::Abs($tx1.amount - 10.0) -lt 0.001
-    $tx2_valid = $tx2.sender -eq "client1" -and $tx2.receiver -eq "jiraiya" -and [math]::Abs($tx2.amount - 20.0) -lt 0.001
-    $tx3_valid = $tx3.sender -eq "client1" -and $tx3.receiver -eq "jiraiya" -and [math]::Abs($tx3.amount - 30.0) -lt 0.001
+    $tx_valid = $tx.sender -eq "client1" -and $tx.receiver -eq "{TRANSACTION['receiver']}" -and [math]::Abs($tx.amount - {TRANSACTION['amount']}) -lt 1
     
-    Write-Output "Transaction 1: sender=$($tx1.sender), receiver=$($tx1.receiver), amount=$($tx1.amount) - Valid: $tx1_valid"
-    Write-Output "Transaction 2: sender=$($tx2.sender), receiver=$($tx2.receiver), amount=$($tx2.amount) - Valid: $tx2_valid"
-    Write-Output "Transaction 3: sender=$($tx3.sender), receiver=$($tx3.receiver), amount=$($tx3.amount) - Valid: $tx3_valid"
+    Write-Output "Transaction: sender=$($tx.sender), receiver=$($tx.receiver), amount=$($tx.amount) - Valid: $tx_valid"
     
     # Check for state
     if (-not ($block.PSObject.Properties.Name -contains "state")) {{
@@ -348,11 +359,8 @@ def check_latest_block_for_transactions():
         return
     }}
     
-    # Check that the state has expected addresses
-    Write-Output "State contains entries for accounts"
-    
     # Overall validation
-    if ($tx1_valid -and $tx2_valid -and $tx3_valid -and $stateCount -ge 3) {{
+    if ($tx_valid -and $stateCount -ge 3) {{
         Write-Output "SUCCESS: Block structure matches expected format"
     }} else {{
         Write-Output "FAIL: Block structure does not match expected format"
@@ -415,7 +423,7 @@ if __name__ == "__main__":
             print("Libraries installed successfully.")
         
         # Set pyautogui pause between actions
-        pyautogui.PAUSE = 0.1  # Reduced from 0.5
+        pyautogui.PAUSE = 0.1
         
         # Clean directories (including blocks directory)
         clean_directories()
@@ -427,9 +435,9 @@ if __name__ == "__main__":
         else:
             print("Confirmed: Blocks directory is empty")
         
-        # Start members with one Byzantine NO_MAN
+        # Start all 4 members
         start_members()
-        print(f"Started members (3 normal + 1 NO_MAN). Waiting for initialization...")
+        print(f"Started all 4 members. Waiting for initialization...")
         time.sleep(MEMBER_START_DELAY * 4)
         
         # Start client library
@@ -442,22 +450,32 @@ if __name__ == "__main__":
         print("Waiting for client to initialize...")
         time.sleep(3)
         
-        # Send the three valid transactions
-        print("\nStarting transaction sending (fast mode - approx. 5 seconds total):")
+        # Terminate member4 (omission test)
+        print("\n=== OMISSION TEST ===")
+        print("Now terminating member4 to simulate node failure...")
+        member_terminated = terminate_member("member4")
+        
+        if not member_terminated:
+            print("WARNING: Could not terminate member4, test may not be valid")
+        
+        print(f"Waiting {STABILIZATION_WAIT_SECONDS}s for network to stabilize after member omission...")
+        time.sleep(STABILIZATION_WAIT_SECONDS)
+        
+        # Send the transaction
+        print("\nSending transaction after member omission:")
+        print(f"Transaction details: receiver={TRANSACTION['receiver']}, amount={TRANSACTION['amount']}")
         start_time = time.time()
         
-        for i, transaction in enumerate(TRANSACTIONS):
-            print(f"Sending transaction {i+1}/{len(TRANSACTIONS)}: {transaction['receiver']}, Amount: {transaction['amount']}")
-            send_transaction(client_pid, client_title, transaction)
-        
-        # Send exit command after all transactions
-        exit_client(client_pid, client_title)
+        send_transaction(client_pid, client_title, TRANSACTION)
         
         elapsed_time = time.time() - start_time
-        print(f"Transactions sending completed in {elapsed_time:.2f} seconds")
+        print(f"Transaction sent in {elapsed_time:.2f} seconds")
+        
+        # Send exit command
+        exit_client(client_pid, client_title)
         
         # Wait for consensus process
-        print(f"\nWaiting {CONSENSUS_WAIT_SECONDS}s for final consensus process...")
+        print(f"\nWaiting {CONSENSUS_WAIT_SECONDS}s for consensus process...")
         time.sleep(CONSENSUS_WAIT_SECONDS)
         print("Consensus wait finished.")
         
@@ -466,7 +484,7 @@ if __name__ == "__main__":
         
         # Check transaction details in the block
         if test_passed:
-            transaction_check = check_latest_block_for_transactions()
+            transaction_check = check_latest_block_for_transaction()
             test_passed = test_passed and transaction_check
         
     except KeyboardInterrupt:
@@ -484,10 +502,10 @@ if __name__ == "__main__":
         # Final Result
         print("\n----- Test Summary -----")
         if test_passed:
-            print("RESULT: PASSED - Valid transactions were successfully processed")
-            print("The blockchain correctly processed the transactions despite one NO_MAN member rejecting them.")
+            print("RESULT: PASSED - Transaction was successfully processed despite member omission")
+            print("The blockchain correctly handled the absence of one member (n=4, f=1).")
             sys.exit(0)
         else:
-            print("RESULT: FAILED - Transactions were not processed as expected")
+            print("RESULT: FAILED - Transaction was not processed as expected after member omission")
             print("Check the logs above for details on what went wrong.")
             sys.exit(1)

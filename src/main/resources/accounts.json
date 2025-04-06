@@ -19,28 +19,10 @@
       "privateKeyPath": "src/main/resources/accountKeys/gamito_priv.pem"
     },
     {
-      "name": "account_3d835646",
-      "address": "0xContractAddress0123456789ABCDEF0123456789",
-      "publicKeyPath": "src/main/resources/accountKeys/smart_pub.pem",
-      "privateKeyPath": "src/main/resources/accountKeys/smart_priv.pem"
-    },
-    {
-      "name": "jiraiya",
-      "address": "0x5678ABCDEF1234567890ABCDEF1234567890ABCD",
-      "publicKeyPath": "src/main/resources/accountKeys/jiraiya_pub.pem",
-      "privateKeyPath": "src/main/resources/accountKeys/jiraiya_priv.pem"
-    },
-    {
       "name": "client1",
       "address": "0x1234567890ABCDEF1234567890ABCDEF12345678",
       "publicKeyPath": "src/main/resources/accountKeys/client1_pub.pem",
       "privateKeyPath": "src/main/resources/accountKeys/client1_priv.pem"
-    },
-    {
-      "name": "client2",
-      "address": "0x9876543210FEDCBA9876543210FEDCBA98765432",
-      "publicKeyPath": "src/main/resources/accountKeys/client2_pub.pem",
-      "privateKeyPath": "src/main/resources/accountKeys/client2_priv.pem"
     },
     {
       "name": "istcoin",

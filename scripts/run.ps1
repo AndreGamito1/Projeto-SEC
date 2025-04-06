@@ -48,8 +48,8 @@ Start-Sleep -Seconds 1
 # Start client library on port 8080
 Run-Client -title "ClientLibrary" -command "mvn exec:java -Dexec.mainClass=com.depchain.client.ClientLibrary -Dexec.args=8080"
 
-# Start additional terminals for Jiraiya and Miguel
-Run-Client -title "jiraiya" -command "mvn exec:java -Dexec.mainClass=com.depchain.client.Client -Dexec.args=`"jiraiya`""
+# Start additional terminals for Miguel
+Run-Client -title "Miguel" -command "mvn exec:java -Dexec.mainClass=com.depchain.client.Client -Dexec.args=`"Miguel`""
 Start-Sleep -Seconds 1
 
 Write-Host "All members and clients launched!"

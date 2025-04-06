@@ -12,24 +12,36 @@ PROJECT_ROOT = os.getcwd()
 PRIV_KEYS_DIR = os.path.join(PROJECT_ROOT, "src/main/resources/priv_keys")
 PUB_KEYS_DIR = os.path.join(PROJECT_ROOT, "src/main/resources/pub_keys")
 BLOCKS_DIR = os.path.join(PROJECT_ROOT, "src/main/resources/blocks")
-LATEST_BLOCK_FILE = os.path.join(BLOCKS_DIR, "block1.json")
 
-# --- Invalid Transaction Test ---
-# Define an excessively large transaction amount that should be rejected
-INVALID_TRANSACTION = {
-    "action": "transaction",
-    "receiver": "jiraiya",
-    "amount": "10000"  # Excessively large amount that should be rejected
-}
+# --- Transaction Flooding Test ---
+# Define a batch of 12 transactions to send rapidly
+TRANSACTIONS = [
+    {"receiver": "Miguel", "amount": "1"},
+    {"receiver": "Miguel", "amount": "2"},
+    {"receiver": "Miguel", "amount": "3"},
+    {"receiver": "Miguel", "amount": "4"},
+    {"receiver": "Miguel", "amount": "5"},
+    {"receiver": "Miguel", "amount": "6"},
+    {"receiver": "Miguel", "amount": "7"},
+    {"receiver": "Miguel", "amount": "8"},
+    {"receiver": "Miguel", "amount": "9"},
+    {"receiver": "Miguel", "amount": "10"},
+    {"receiver": "Miguel", "amount": "11"},
+    {"receiver": "Miguel", "amount": "12"}
+]
+
+# --- Expected Results ---
+EXPECTED_BLOCK_COUNT = 4
+TRANSACTIONS_PER_BLOCK = 3
 
 # --- Timing ---
 MEMBER_START_DELAY = 1
 CLIENT_LIB_STARTUP_DELAY = 3
-CLIENT_INTERACTION_DELAY = 1
-CLIENT_WINDOW_LOAD_DELAY = 2
-CONSENSUS_WAIT_SECONDS = 30
-CHECKING_POLL_INTERVAL_SECONDS = 5
-CHECKING_MAX_WAIT_SECONDS = 60
+CLIENT_INTERACTION_DELAY = 0.1  # Very short delay to send transactions quickly
+CLIENT_WINDOW_LOAD_DELAY = 0.3
+BATCH_WAIT_SECONDS = 3  # Short wait between transaction batches
+CONSENSUS_WAIT_SECONDS = 60  # Longer wait for multiple blocks to be created
+CHECKING_MAX_WAIT_SECONDS = 90
 
 # --- Process Management ---
 process_ids = []
@@ -71,9 +83,6 @@ def clean_directories():
     """
     
     run_powershell_command(cmd)
-    
-    # Record initial block state
-    return get_block_files()
 
 def get_block_files():
     """Get a list of block files in the blocks directory using PowerShell."""
@@ -87,39 +96,36 @@ def get_block_files():
     return files
 
 def start_members():
-    """Start the blockchain members with one Byzantine YES_MAN."""
+    """Start the blockchain members (all normal)."""
     print("Starting members...")
     
     # Define member configurations
     members_cmd = """
-    # Array of member configurations (name, behavior)
+    # Array of member configurations
     $members = @(
         @{name="member1"; behavior="default"},
         @{name="member2"; behavior="default"},
         @{name="member3"; behavior="default"},
-        @{name="member4"; behavior="YES_MAN"}  # Byzantine YesMan behavior
+        @{name="member4"; behavior="default"}
     )
     
     # Start each member in a new terminal
     foreach ($member in $members) {
-        if ($member.behavior -eq "default") {
-            # Start a normal member
-            $process = Start-Process cmd.exe -ArgumentList "/K title $($member.name) && mvn exec:java -Dexec.mainClass=com.depchain.consensus.Main -Dexec.args=`"$($member.name)`"" -PassThru
-            Write-Output $process.Id
-        } else {
-            # Start a Byzantine member with behavior
-            $process = Start-Process cmd.exe -ArgumentList "/K title $($member.name)-$($member.behavior) && mvn exec:java -Dexec.mainClass=com.depchain.consensus.Main -Dexec.args=`"$($member.name) $($member.behavior)`"" -PassThru
-            Write-Output $process.Id
-        }
+        $process = Start-Process cmd.exe -ArgumentList "/K title $($member.name) && mvn exec:java -Dexec.mainClass=com.depchain.consensus.Main -Dexec.args=`"$($member.name)`"" -PassThru
+        Write-Output "$($member.name):$($process.Id)"
         Start-Sleep -Seconds 1
     }
     """
     
     stdout, _, _ = run_powershell_command(members_cmd)
     for line in stdout.splitlines():
-        if line.strip() and line.strip().isdigit():
-            process_ids.append(int(line.strip()))
-            print(f"Started member process with PID: {line.strip()}")
+        if line.strip() and ":" in line:
+            parts = line.strip().split(":")
+            if len(parts) == 2 and parts[1].isdigit():
+                member_name = parts[0]
+                pid = int(parts[1])
+                process_ids.append(pid)
+                print(f"Started member {member_name} with PID: {pid}")
 
 def start_client_library():
     """Start the client library."""
@@ -213,65 +219,111 @@ def activate_window_by_pid(pid):
     stdout, _, _ = run_powershell_command(cmd)
     return "True" in stdout
 
-def send_automated_inputs(client_pid, client_title):
-    """Send automated inputs to the client window using PyAutoGUI."""
-    print(f"Automating inputs to {client_title} (PID: {client_pid})...")
-    
-    # First try focusing by PID
-    activated = activate_window_by_pid(client_pid)
-    if not activated:
-        # Try focusing by window title
-        activated = focus_window_by_title(client_title)
-    
-    if not activated:
-        print(f"Warning: Could not focus client window. Attempting inputs anyway...")
-    
-    # Allow window to fully load and gain focus
-    time.sleep(CLIENT_WINDOW_LOAD_DELAY)
-    
+def send_transaction(client_pid, client_title, transaction):
+    """Send a transaction to the client window using PyAutoGUI."""
     # Send transaction command
-    print("  Sending: 1 (Append Data)")
     pyautogui.typewrite("1")
     pyautogui.press("enter")
     time.sleep(CLIENT_INTERACTION_DELAY)
     
     # Send receiver
-    print(f"  Sending Receiver: {INVALID_TRANSACTION['receiver']}")
-    pyautogui.typewrite(INVALID_TRANSACTION['receiver'])
+    pyautogui.typewrite(transaction['receiver'])
     pyautogui.press("enter")
     time.sleep(CLIENT_INTERACTION_DELAY)
     
-    # Send invalid amount
-    print(f"  Sending Invalid Amount: {INVALID_TRANSACTION['amount']}")
-    pyautogui.typewrite(INVALID_TRANSACTION['amount'])
+    # Send amount
+    pyautogui.typewrite(transaction['amount'])
     pyautogui.press("enter")
     time.sleep(CLIENT_INTERACTION_DELAY)
+
+def exit_client(client_pid, client_title):
+    """Send exit command to client window."""
+    # Focus the window
+    activated = activate_window_by_pid(client_pid)
+    if not activated:
+        activated = focus_window_by_title(client_title)
+    
+    time.sleep(CLIENT_WINDOW_LOAD_DELAY)
     
     # Send exit command
-    print("  Sending: 0 (Exit)")
     pyautogui.typewrite("0")
     pyautogui.press("enter")
-    
-    print("Automated inputs complete.")
 
-def check_no_new_blocks(blocks_before):
-    """Verify that no new block files have been added."""
-    current_blocks = get_block_files()
-    print(f"Checking if any new blocks were added...")
-    print(f"  Blocks before: {blocks_before}")
-    print(f"  Blocks now: {current_blocks}")
+def check_blocks_created(expected_count=EXPECTED_BLOCK_COUNT):
+    """Verify that the expected number of blocks were created."""
+    blocks = get_block_files()
+    print(f"Checking for block files...")
+    print(f"  Found block files: {blocks}")
     
-    # Compare block sets (names only)
-    blocks_before_set = set(blocks_before)
-    current_blocks_set = set(current_blocks)
-    
-    if len(current_blocks_set) > len(blocks_before_set):
-        new_blocks = [b for b in current_blocks if b not in blocks_before_set]
-        print(f"  FAIL: New blocks were added: {new_blocks}")
-        return False
-    else:
-        print("  PASS: No new blocks were added (invalid transaction was rejected)")
+    if len(blocks) >= expected_count:
+        print(f"  PASS: Found {len(blocks)} block(s), expected at least {expected_count}")
         return True
+    else:
+        print(f"  FAIL: Found only {len(blocks)} block(s), expected at least {expected_count}")
+        return False
+
+def check_blocks_transaction_distribution():
+    """Check if the blocks have the expected distribution of transactions (3 per block)."""
+    blocks = get_block_files()
+    
+    if not blocks:
+        print("No block files found.")
+        return False
+    
+    # Sort the blocks by their number
+    sorted_blocks = sorted(blocks, key=lambda x: int(x.replace("block", "").replace(".json", "")))
+    
+    # Use PowerShell to check each block
+    blocks_analysis = []
+    
+    for block_file in sorted_blocks:
+        block_path = os.path.join(BLOCKS_DIR, block_file)
+        
+        cmd = f"""
+        $blockContent = Get-Content -Path "{block_path}" -Raw
+        $block = $blockContent | ConvertFrom-Json
+        
+        # Check transaction count
+        $transactionCount = 0
+        if ($block.PSObject.Properties.Name -contains "transactions") {{
+            $transactionCount = $block.transactions.Count
+        }}
+        
+        Write-Output "$transactionCount"
+        """
+        
+        stdout, _, _ = run_powershell_command(cmd)
+        try:
+            tx_count = int(stdout.strip())
+            blocks_analysis.append({"block": block_file, "tx_count": tx_count})
+        except:
+            print(f"  Error parsing transaction count for {block_file}")
+            blocks_analysis.append({"block": block_file, "tx_count": 0})
+    
+    # Print the block distribution
+    print("\nTransaction distribution across blocks:")
+    for block_info in blocks_analysis:
+        print(f"  {block_info['block']}: {block_info['tx_count']} transactions")
+    
+    # Check if we have the right number of blocks with 3 transactions each
+    blocks_with_3_tx = sum(1 for b in blocks_analysis if b['tx_count'] == TRANSACTIONS_PER_BLOCK)
+    
+    # Check the total number of transactions across all blocks
+    total_tx = sum(b['tx_count'] for b in blocks_analysis)
+    
+    print(f"\nBlocks with {TRANSACTIONS_PER_BLOCK} transactions: {blocks_with_3_tx}/{EXPECTED_BLOCK_COUNT}")
+    print(f"Total transactions processed: {total_tx}/{len(TRANSACTIONS)}")
+    
+    # Success criteria:
+    # - At least the expected number of blocks exist
+    # - At least the expected number of blocks have 3 transactions each
+    # - All transactions are accounted for
+    if len(blocks_analysis) >= EXPECTED_BLOCK_COUNT and total_tx == len(TRANSACTIONS):
+        print("PASS: All transactions were processed and distributed across blocks")
+        return True
+    else:
+        print("FAIL: Not all transactions were processed correctly")
+        return False
 
 def terminate_all_processes():
     """Terminate all processes started by this script."""
@@ -321,7 +373,7 @@ if __name__ == "__main__":
             print("Libraries installed successfully.")
         
         # Set pyautogui pause between actions
-        pyautogui.PAUSE = 0.5
+        pyautogui.PAUSE = 0.05  # Very short pause to send transactions rapidly
         
         # Clean directories (including blocks directory)
         clean_directories()
@@ -333,8 +385,9 @@ if __name__ == "__main__":
         else:
             print("Confirmed: Blocks directory is empty")
         
-        # Start members with one Byzantine YES_MAN
+        # Start all 4 members
         start_members()
+        print(f"Started all 4 members. Waiting for initialization...")
         time.sleep(MEMBER_START_DELAY * 4)
         
         # Start client library
@@ -344,18 +397,61 @@ if __name__ == "__main__":
         
         # Start client1
         client_pid, client_title = start_client("client1")
-        time.sleep(2)
+        print("Waiting for client to initialize...")
+        time.sleep(3)
         
-        # Send automated inputs to client1
-        send_automated_inputs(client_pid, client_title)
+        # Focus the client window once before sending all transactions
+        print("\nFocusing client window...")
+        activated = activate_window_by_pid(client_pid)
+        if not activated:
+            activated = focus_window_by_title(client_title)
         
-        # Wait for consensus process
-        print(f"\nWaiting {CONSENSUS_WAIT_SECONDS} seconds for consensus process...")
+        if not activated:
+            print("WARNING: Could not focus client window. Attempting inputs anyway...")
+        time.sleep(CLIENT_WINDOW_LOAD_DELAY)
+        
+        # Send the 12 transactions in batches
+        print("\n=== TRANSACTION FLOODING TEST ===")
+        print(f"Sending {len(TRANSACTIONS)} transactions rapidly...")
+        start_time = time.time()
+        
+        # Send transactions in groups of 3 with small delays between groups
+        for i in range(0, len(TRANSACTIONS), 3):
+            batch = TRANSACTIONS[i:i+3]
+            print(f"\nSending batch {i//3 + 1}/{len(TRANSACTIONS)//3}:")
+            
+            batch_start_time = time.time()
+            for j, transaction in enumerate(batch):
+                print(f"  Transaction {i+j+1}/{len(TRANSACTIONS)}: {transaction['receiver']}, Amount: {transaction['amount']}")
+                send_transaction(client_pid, client_title, transaction)
+            
+            batch_elapsed = time.time() - batch_start_time
+            print(f"  Batch sent in {batch_elapsed:.2f} seconds")
+            
+            # Wait briefly between batches to allow some processing
+            if i + 3 < len(TRANSACTIONS):
+                print(f"  Waiting {BATCH_WAIT_SECONDS}s between batches...")
+                time.sleep(BATCH_WAIT_SECONDS)
+        
+        # Send exit command after all transactions
+        exit_client(client_pid, client_title)
+        
+        total_elapsed_time = time.time() - start_time
+        print(f"\nAll transactions sent in {total_elapsed_time:.2f} seconds")
+        
+        # Wait for consensus process to complete for all blocks
+        print(f"\nWaiting {CONSENSUS_WAIT_SECONDS}s for consensus on all transactions...")
         time.sleep(CONSENSUS_WAIT_SECONDS)
         print("Consensus wait finished.")
         
-        # Verify no blocks were added
-        test_passed = check_no_new_blocks(initial_blocks)
+        # Verify correct number of blocks were created
+        blocks_test_passed = check_blocks_created(EXPECTED_BLOCK_COUNT)
+        
+        # Check transaction distribution across blocks
+        distribution_test_passed = check_blocks_transaction_distribution()
+        
+        # Final test result
+        test_passed = blocks_test_passed and distribution_test_passed
         
     except KeyboardInterrupt:
         print("\nTest interrupted by user.")
@@ -372,10 +468,10 @@ if __name__ == "__main__":
         # Final Result
         print("\n----- Test Summary -----")
         if test_passed:
-            print("RESULT: PASSED - Invalid transaction was correctly rejected")
-            print("The blockchain correctly rejected the transaction with an excessive amount.")
+            print(f"RESULT: PASSED - All {len(TRANSACTIONS)} transactions were correctly processed")
+            print(f"The blockchain successfully created {EXPECTED_BLOCK_COUNT} blocks with {TRANSACTIONS_PER_BLOCK} transactions each")
             sys.exit(0)
         else:
-            print("RESULT: FAILED - Invalid transaction was incorrectly processed")
-            print("A new block was created despite the invalid transaction amount.")
+            print("RESULT: FAILED - Transactions were not processed as expected")
+            print("Check the logs above for details on what went wrong.")
             sys.exit(1)
