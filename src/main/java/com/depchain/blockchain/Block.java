@@ -43,7 +43,7 @@ public class Block implements Serializable {
     public Block(String previousHash, List<Transaction> transactions) {
         this.previousHash = previousHash;
         this.transactions = transactions != null ? transactions : new ArrayList<>();
-        this.hash = calculateHash(previousHash); // Initial hash calculation
+        this.hash = calculateHash(previousHash); 
     }
 
     public Block(String previousHash, List<Transaction> transactions, String hash) {
@@ -94,14 +94,11 @@ public class Block implements Serializable {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
         
-        // Write block header information
         dos.writeUTF(hash);
         dos.writeUTF(previousHash);
 
-        // Write transaction count
         dos.writeInt(transactions.size());
         
-        // Write each transaction in the block
         for (Transaction transaction : transactions) {
             dos.writeUTF(transaction.getSender());
             dos.writeUTF(transaction.getReceiver());
@@ -110,7 +107,6 @@ public class Block implements Serializable {
             dos.writeUTF(transaction.getSignature());
         }
         
-        // Write block hash
         dos.writeUTF(hash);
         
         dos.flush();
@@ -138,17 +134,13 @@ public class Block implements Serializable {
         ByteArrayInputStream bais = new ByteArrayInputStream(serializedBlock);
         DataInputStream dis = new DataInputStream(bais);
         
-        // Read block header information
         String hash = dis.readUTF();
         String previousHash = dis.readUTF();
         
-        // Create a new block with the header information
         Block block = new Block(previousHash, null);
         block.setHash(hash);
-        // Read transaction count
         int transactionCount = dis.readInt();
         
-        // Read each transaction and add to the block
         for (int i = 0; i < transactionCount; i++) {
             String sender = dis.readUTF();
             String receiver = dis.readUTF();
@@ -156,12 +148,10 @@ public class Block implements Serializable {
             String data = dis.readUTF();
             String signature = dis.readUTF();
             
-            // Create and add the transaction to the block
             Transaction transaction = new Transaction(sender, receiver, amount, data, signature);
             block.addTransaction(transaction);
         }
         
-        // Read and verify block hash
         String verificationHash = dis.readUTF();
         if (!hash.equals(verificationHash)) {
             throw new IOException("Block verification failed: Hash mismatch");
@@ -266,7 +256,7 @@ public class Block implements Serializable {
         mapper.writerWithDefaultPrettyPrinter().writeValue(blockFile, root);
     }
 
-    // Getters and setters
+    // --- Getters & setters ---
     
     public String getPreviousHash() {
         return previousHash;
