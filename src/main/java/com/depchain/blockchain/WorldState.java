@@ -4,6 +4,9 @@ import com.depchain.utils.Logger;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -30,6 +33,7 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.apache.tuweni.units.ethereum.Gas;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.account.Account;
@@ -56,6 +60,8 @@ public class WorldState {
         this.accounts = new HashMap<>();
         this.nameAddress = new HashMap<>();
         this.evmWorld = new SimpleWorld();
+
+        
         
     }
 
@@ -306,13 +312,13 @@ public class WorldState {
         }
 
         if (receiver.isContract()) {
-           // handleSmartContractTransaction(tx, sender, receiver, state);
+           handleSmartContractTransaction(tx, sender, receiver, state);
         } else {
             handleRegularTransfer(tx, sender, receiver);
         }
     }
 
-   /* private void handleSmartContractTransaction(Transaction tx, AccountState sender, AccountState receiver, WorldState state) {
+   private void handleSmartContractTransaction(Transaction tx, AccountState sender, AccountState receiver, WorldState state) {
         System.out.println("⚙️ Executing smart contract at: " + receiver.getAddress());
     
         try {
@@ -329,24 +335,21 @@ public class WorldState {
             PrintStream printStream = new PrintStream(byteArrayOutputStream);
             StandardJsonTracer tracer = new StandardJsonTracer(printStream, true, true, true);
             
-            GasCalculator dummyGas = new GasCalculator() {
-                @Override
-                public Gas getZeroTierGasCost() {
-                    return Gas.ZERO;
-            }
-
-            EVM evmInstance = new EVM(null, null, dummyGas, EvmSpecVersion.CANCUN);
+     
+            EVM evmInstance = new EVM(null, null, null, EvmSpecVersion.CANCUN);
             var executor = EVMExecutor.evm(evmInstance)
                 .tracer(tracer)
                 .code((Code) Bytes.fromHexString(state.getAccount(receiver.getAddress()).getCode()))
                 .sender(senderAddr)
                 .receiver(receiverAddr)
-                .worldUpdater(simpleWorld.updater());
-            
-            var result = executor.execute(); // Add this missing piece!
-            executor.commitWorldState();
+                .worldUpdater(simpleWorld.updater())
+                .commitWorldState();
+                
+            executor.callData(Bytes.fromHexString(tx.getData()));
+            executor.execute();
+            int count = extractIntegerFromReturnData(byteArrayOutputStream);
+            System.out.println("Output of 'transfer()):' " + Integer.toString(count));
 
-    
             syncStorageFromEVM(receiver, receiverAcc);
     
         } catch (Exception e) {
@@ -354,7 +357,9 @@ public class WorldState {
             e.printStackTrace();
         }
     }
-    */
+
+
+    
    
     private void handleRegularTransfer(Transaction tx, AccountState sender, AccountState receiver) {
         BigDecimal value = BigDecimal.valueOf(tx.getAmount());
@@ -495,6 +500,42 @@ public class WorldState {
             });
             
         return sb.toString();
+    }
+
+     public static int extractIntegerFromReturnData(ByteArrayOutputStream byteArrayOutputStream) {
+        String[] lines = byteArrayOutputStream.toString().split("\\r?\\n");
+        JsonObject jsonObject = JsonParser.parseString(lines[lines.length - 1]).getAsJsonObject();
+
+        String memory = jsonObject.get("memory").getAsString();
+
+        JsonArray stack = jsonObject.get("stack").getAsJsonArray();
+        int offset = Integer.decode(stack.get(stack.size() - 1).getAsString());
+        int size = Integer.decode(stack.get(stack.size() - 2).getAsString());
+
+        String returnData = memory.substring(2 + offset * 2, 2 + offset * 2 + size * 2);
+        return Integer.decode("0x"+returnData);
+    }
+
+    public static String convertIntegerToHex256Bit(int number) {
+        BigInteger bigInt = BigInteger.valueOf(number);
+
+        return String.format("%064x", bigInt);
+    }
+
+    public static String padHexStringTo256Bit(String hexString) {
+        if (hexString.startsWith("0x")) {
+            hexString = hexString.substring(2);
+        }
+
+        int length = hexString.length();
+        int targetLength = 64;
+
+        if (length >= targetLength) {
+            return hexString.substring(0, targetLength);
+        }
+
+        return "0".repeat(targetLength - length) +
+                hexString;
     }
 
     //--- Getters and Setters ---
