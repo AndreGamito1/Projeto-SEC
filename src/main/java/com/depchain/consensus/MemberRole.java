@@ -51,9 +51,7 @@ public class MemberRole implements Role {
 
                 }
             }
-        
-           
-        
+            
     public void handleGetBalance(AuthenticatedMessage message) {
         // Send WorldState to the sender
         String sender = message.getPayload();
@@ -89,6 +87,7 @@ public class MemberRole implements Role {
     @Override
     public void handleTransactionMessage(Message message) {                
     }
+    
     @Override
     public void logReceivedMessagesStatus() {
         // Member-specific logging

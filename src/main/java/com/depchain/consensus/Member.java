@@ -30,9 +30,9 @@ public class Member {
 
     private WorldState worldState;
 
-     // Configuration file paths (consider making these constants or configurable)
-     private static final String GENESIS_ACCOUNTS_FILE_PATH = "src/main/resources/genesis_accounts.json";
-     private static final String GENESIS_BLOCK_RESOURCE_NAME = "src/main/resources/genesisBlock.json"; // Classpath resource
+    // Configuration file paths (consider making these constants or configurable)
+    private static final String GENESIS_ACCOUNTS_FILE_PATH = "src/main/resources/genesis_accounts.json";
+    private static final String GENESIS_BLOCK_RESOURCE_NAME = "src/main/resources/genesisBlock.json"; // Classpath resource
 
     public Member(String name) throws Exception {
         this(name, "default");
@@ -199,14 +199,11 @@ public class Member {
         }
     }
 
-
     protected void setupMemberLinks() throws Exception {
         System.out.println("Setting up member links");
         memberManager.setupMemberLinks();
         memberLinks = memberManager.getMemberLinks();
     }
-
- 
 
     public void start() throws Exception {
         currentRole.start();
@@ -218,6 +215,7 @@ public class Member {
     public void decided() throws Exception {
         currentRole.decided();
     }
+
     public void aborted() throws Exception {
         currentRole.aborted();
     }
@@ -310,6 +308,7 @@ public class Member {
     public MemberManager getMemberManager() {
         return memberManager;
     }
+    
     public ByzantineEpochConsensus getConsensus() {
         return epochConsensus;
     }
